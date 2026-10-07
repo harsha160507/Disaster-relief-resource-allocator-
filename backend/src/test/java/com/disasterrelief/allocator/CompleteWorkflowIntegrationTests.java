@@ -73,6 +73,12 @@ class CompleteWorkflowIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.affectedLocationIds[0]").value(locationId.toString()));
 
+        mockMvc.perform(get("/api/v1/disasters/{id}", disasterId)
+                .with(user("coordinator").roles("DISASTER_COORDINATOR")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.affectedLocationIds[0]").value(locationId.toString()));
+
         UUID resourceTypeId = postId("/api/v1/resource-types", """
                 {"name":"Integration Water","unitOfMeasure":"litres","perishable":false}
                 """, "INVENTORY_MANAGER");
@@ -89,6 +95,12 @@ class CompleteWorkflowIntegrationTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"resourceTypeId\":\"%s\",\"quantity\":20}".formatted(resourceTypeId)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.items[0].id"));
+
+        mockMvc.perform(get("/api/v1/requests/{id}", requestId)
+                .with(user("field-agent").roles("FIELD_AGENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(requestItemId.toString()))
+                .andExpect(jsonPath("$.items[0].resourceTypeId").value(resourceTypeId.toString()));
 
         mockMvc.perform(post("/api/v1/requests/{id}/submission", requestId)
                 .with(user("field-agent").roles("FIELD_AGENT")))

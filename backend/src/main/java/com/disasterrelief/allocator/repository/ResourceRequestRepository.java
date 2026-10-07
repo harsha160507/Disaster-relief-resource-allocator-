@@ -6,8 +6,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 public interface ResourceRequestRepository extends JpaRepository<ResourceRequest, UUID> {
+
+    @Override
+    @EntityGraph(attributePaths = {"disaster", "requestedBy", "destination", "items", "items.resourceType"})
+    Optional<ResourceRequest> findById(UUID requestId);
 
     Optional<ResourceRequest> findByReference(String reference);
 
