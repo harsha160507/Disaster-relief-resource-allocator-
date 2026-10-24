@@ -35,6 +35,9 @@ class ApiControllerTests {
     @MockitoBean
     private DisasterService disasterService;
 
+    @MockitoBean
+    private com.disasterrelief.allocator.security.OrganizationAccess organizationAccess;
+
     @Test
     void coordinatorCanCreateDisaster() throws Exception {
         Disaster disaster = org.mockito.Mockito.mock(Disaster.class);
@@ -42,7 +45,7 @@ class ApiControllerTests {
         when(disaster.getType()).thenReturn(DisasterType.FLOOD);
         when(disaster.getStartedAt()).thenReturn(Instant.parse("2026-01-01T00:00:00Z"));
         when(disaster.getAffectedLocations()).thenReturn(java.util.Set.of());
-        when(disasterService.create(any(), any(), any(), any())).thenReturn(disaster);
+        when(disasterService.createForOrganization(any(), any(), any(), any(), any())).thenReturn(disaster);
 
         mockMvc.perform(post("/api/v1/disasters")
                 .with(user("coordinator").roles("DISASTER_COORDINATOR"))
@@ -90,7 +93,7 @@ class ApiControllerTests {
 
             @Test
             void invalidOperationReturnsUnprocessableEntity() throws Exception {
-            when(disasterService.create(any(), any(), any(), any()))
+            when(disasterService.createForOrganization(any(), any(), any(), any(), any()))
                 .thenThrow(new BusinessRuleViolationException("Disaster type and start time are required"));
 
             mockMvc.perform(post("/api/v1/disasters")
@@ -103,7 +106,7 @@ class ApiControllerTests {
 
             @Test
             void persistenceConflictReturnsConflictWithoutInternalDetails() throws Exception {
-            when(disasterService.create(any(), any(), any(), any()))
+            when(disasterService.createForOrganization(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("constraint secret details"));
 
             mockMvc.perform(post("/api/v1/disasters")
@@ -118,7 +121,7 @@ class ApiControllerTests {
 
             @Test
             void unexpectedFailureReturnsSafeInternalError() throws Exception {
-            when(disasterService.create(any(), any(), any(), any()))
+            when(disasterService.createForOrganization(any(), any(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("internal secret details"));
 
             mockMvc.perform(post("/api/v1/disasters")
