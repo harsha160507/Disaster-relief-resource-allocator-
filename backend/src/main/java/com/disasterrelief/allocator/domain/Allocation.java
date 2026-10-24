@@ -22,6 +22,10 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Allocation extends BaseEntity {
 
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    private Long version;
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "request_item_id", nullable = false)
