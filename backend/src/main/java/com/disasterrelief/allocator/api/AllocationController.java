@@ -16,16 +16,19 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AllocationController {
     private final AllocationService service;
+    private final com.disasterrelief.allocator.security.OrganizationAccess access;
 
     @GetMapping("/request-items/{requestItemId}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'INVENTORY_MANAGER', 'DISASTER_COORDINATOR', 'FIELD_AGENT', 'PARTNER_MANAGER', 'VIEWER')")
     public List<AllocationResponse> history(@PathVariable UUID requestItemId) {
+        access.requestItem(requestItemId);
         return service.history(requestItemId).stream().map(ApiMapper::allocation).toList();
     }
 
     @PostMapping("/requests/{requestId}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'INVENTORY_MANAGER', 'DISASTER_COORDINATOR')")
     public List<AllocationResponse> allocate(@PathVariable UUID requestId) {
+        access.request(requestId);
         return service.allocate(requestId).stream().map(ApiMapper::allocation).toList();
     }
 
@@ -33,6 +36,7 @@ public class AllocationController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'INVENTORY_MANAGER', 'DISASTER_COORDINATOR')")
     public AllocationResponse reserve(@Valid @RequestBody AllocationCreateRequest request) {
+        access.reservation(request.requestItemId(), request.inventoryId());
         return ApiMapper.allocation(service.reserve(request.requestItemId(), request.inventoryId(), request.quantity()));
     }
 }
