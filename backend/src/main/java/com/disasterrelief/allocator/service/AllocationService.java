@@ -37,6 +37,9 @@ public class AllocationService {
         Inventory inventory = inventoryRepository.findByIdForUpdate(inventoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + inventoryId));
         ResourceRequest request = item.getRequest();
+        if (!inventory.getLocation().getOrganization().getId().equals(request.getDestination().getOrganization().getId())) {
+            throw new BusinessRuleViolationException("Inventory and request must belong to the same organization");
+        }
         if (request.getStatus() != RequestStatus.APPROVED
                 && request.getStatus() != RequestStatus.PARTIALLY_FULFILLED) {
             throw new BusinessRuleViolationException("Only approved requests can receive allocations");
@@ -84,6 +87,8 @@ public class AllocationService {
             List<Inventory> inventories = inventoryRepository
                     .findAvailableByResourceTypeIdForUpdate(item.getResourceType().getId());
             for (Inventory inventory : inventories) {
+                if (!inventory.getLocation().getOrganization().getId()
+                        .equals(request.getDestination().getOrganization().getId())) continue;
                 BigDecimal available = inventory.getQuantity().subtract(inventory.getReservedQuantity());
                 BigDecimal quantity = remainingNeed.min(available);
                 if (quantity.signum() <= 0) {
