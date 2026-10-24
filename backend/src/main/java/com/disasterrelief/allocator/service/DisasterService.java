@@ -10,6 +10,8 @@ import com.disasterrelief.allocator.repository.DisasterRepository;
 import com.disasterrelief.allocator.repository.LocationRepository;
 import com.disasterrelief.allocator.repository.OrganizationRepository;
 import java.time.Instant;
+import java.util.Map;
+import com.disasterrelief.allocator.domain.AuditAction;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,19 +24,28 @@ public class DisasterService {
     private final DisasterRepository disasterRepository;
     private final LocationRepository locationRepository;
     private final OrganizationRepository organizationRepository;
+    private final AuditWriter audit;
 
     @Transactional
     public Disaster createForOrganization(String name, DisasterType type, String description, Instant startedAt, UUID organizationId) {
         var organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
         if (!organization.isActive()) throw new BusinessRuleViolationException("Organization is inactive");
-        var disaster = create(name, type, description, startedAt);
+        var disaster = newDisaster(name, type, description, startedAt);
         disaster.setOrganization(organization);
+        disasterRepository.save(disaster);
+        created(disaster);
         return disaster;
     }
 
     @Transactional
     public Disaster create(String name, DisasterType type, String description, Instant startedAt) {
+        var disaster = disasterRepository.save(newDisaster(name, type, description, startedAt));
+        created(disaster);
+        return disaster;
+    }
+
+    private Disaster newDisaster(String name, DisasterType type, String description, Instant startedAt) {
         requireText(name, "Disaster name is required");
         if (type == null || startedAt == null) {
             throw new BusinessRuleViolationException("Disaster type and start time are required");
@@ -44,7 +55,7 @@ public class DisasterService {
         disaster.setType(type);
         disaster.setDescription(description);
         disaster.setStartedAt(startedAt);
-        return disasterRepository.save(disaster);
+        return disaster;
     }
 
     @Transactional
@@ -52,6 +63,7 @@ public class DisasterService {
         Disaster disaster = find(disasterId);
         requireStatus(disaster, DisasterStatus.DRAFT, "Only draft disasters can be activated");
         disaster.setStatus(DisasterStatus.ACTIVE);
+        status(disaster, DisasterStatus.DRAFT);
         return disaster;
     }
 
@@ -64,6 +76,7 @@ public class DisasterService {
         }
         disaster.setEndedAt(endedAt);
         disaster.setStatus(DisasterStatus.CLOSED);
+        status(disaster, DisasterStatus.ACTIVE);
         return disaster;
     }
 
@@ -73,7 +86,10 @@ public class DisasterService {
         requireStatus(disaster, DisasterStatus.ACTIVE, "Locations can only be added to active disasters");
         Location location = locationRepository.findById(locationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Location not found: " + locationId));
-        disaster.getAffectedLocations().add(location);
+        if (disaster.getAffectedLocations().add(location)) {
+            audit.record(AuditAction.UPDATED, "DISASTER", disaster.getId(), owner(disaster),
+                    "disaster.location_added", Map.of("locationId", locationId));
+        }
         return disaster;
     }
 
@@ -81,6 +97,20 @@ public class DisasterService {
     public Disaster find(UUID disasterId) {
         return disasterRepository.findById(disasterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Disaster not found: " + disasterId));
+    }
+
+    private UUID owner(Disaster disaster) {
+        return disaster.getOrganization() == null ? null : disaster.getOrganization().getId();
+    }
+
+    private void created(Disaster disaster) {
+        audit.record(AuditAction.CREATED, "DISASTER", disaster.getId(), owner(disaster),
+                "disaster.created", Map.of("status", disaster.getStatus(), "type", disaster.getType()));
+    }
+
+    private void status(Disaster disaster, DisasterStatus before) {
+        audit.record(AuditAction.STATUS_CHANGED, "DISASTER", disaster.getId(), owner(disaster),
+                "disaster.status_changed", Map.of("before", before, "after", disaster.getStatus()));
     }
 
     private void requireStatus(Disaster disaster, DisasterStatus expected, String message) {
