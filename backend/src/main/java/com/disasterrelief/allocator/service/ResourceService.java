@@ -9,6 +9,8 @@ import com.disasterrelief.allocator.repository.InventoryRepository;
 import com.disasterrelief.allocator.repository.LocationRepository;
 import com.disasterrelief.allocator.repository.ResourceTypeRepository;
 import java.math.BigDecimal;
+import java.util.Map;
+import com.disasterrelief.allocator.domain.AuditAction;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class ResourceService {
     private final ResourceTypeRepository resourceTypeRepository;
     private final InventoryRepository inventoryRepository;
     private final LocationRepository locationRepository;
+    private final AuditWriter audit;
 
     @Transactional
     public ResourceType createResourceType(String name, String unitOfMeasure, boolean perishable) {
@@ -34,7 +37,10 @@ public class ResourceService {
         resourceType.setName(name.trim());
         resourceType.setUnitOfMeasure(unitOfMeasure.trim());
         resourceType.setPerishable(perishable);
-        return resourceTypeRepository.save(resourceType);
+        resourceTypeRepository.save(resourceType);
+        audit.record(AuditAction.CREATED, "RESOURCE_TYPE", resourceType.getId(), null,
+                "resource_type.created", Map.of("perishable", perishable));
+        return resourceType;
     }
 
     @Transactional
@@ -50,8 +56,11 @@ public class ResourceService {
                     created.setResourceType(resourceType);
                     return created;
                 });
-        inventory.setQuantity(inventory.getQuantity().add(quantity));
-        return inventoryRepository.save(inventory);
+        BigDecimal before = inventory.getQuantity();
+        inventory.setQuantity(before.add(quantity));
+        inventoryRepository.save(inventory);
+        quantityEvent(inventory, before, "inventory.received");
+        return inventory;
     }
 
     @Transactional
@@ -64,8 +73,11 @@ public class ResourceService {
         if (updatedQuantity.compareTo(inventory.getReservedQuantity()) < 0) {
             throw new BusinessRuleViolationException("Inventory cannot fall below its reserved quantity");
         }
+        BigDecimal before = inventory.getQuantity();
         inventory.setQuantity(updatedQuantity);
-        return inventoryRepository.save(inventory);
+        inventoryRepository.save(inventory);
+        quantityEvent(inventory, before, "inventory.adjusted");
+        return inventory;
     }
 
     @Transactional(readOnly = true)
@@ -91,6 +103,15 @@ public class ResourceService {
         findResourceType(resourceTypeId);
         return organizationId == null ? inventoryRepository.findAvailableByResourceTypeId(resourceTypeId)
                 : inventoryRepository.findAvailableForOrganization(resourceTypeId, organizationId);
+    }
+
+    private void quantityEvent(Inventory inventory, BigDecimal before, String operation) {
+        audit.record(AuditAction.UPDATED, "INVENTORY", inventory.getId(),
+                inventory.getLocation().getOrganization().getId(), operation,
+                Map.of("beforeQuantity", before, "afterQuantity", inventory.getQuantity(),
+                        "reservedQuantity", inventory.getReservedQuantity(),
+                        "locationId", inventory.getLocation().getId(),
+                        "resourceTypeId", inventory.getResourceType().getId()));
     }
 
     private void requirePositive(BigDecimal value, String message) {
