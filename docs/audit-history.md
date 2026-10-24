@@ -106,7 +106,7 @@ described in [database setup](database-setup.md) to check migrations, preservati
 append-only enforcement, committed persistence and atomic rollback.
 
 Direct repository/SQL changes outside application services are not automatically
-captured. Authentication failures, read access, external identity-provider events,
+captured. Authentication failures, read access and external identity-provider events
 are outside this capture scope. Phase 4 adds the shipment operations described in
 [the shipment guide](shipment-workflows.md). No frontend or scheduled
 retention/deletion job is introduced.
