@@ -26,7 +26,7 @@ public class ShipmentService {
     @Transactional
     public ShipmentDtos.View create(ShipmentDtos.Create input) {
         var ids = input.allocationIds();
-        if (ids == null || ids.isEmpty() || ids.size() > 100 || ids.contains(null)
+        if (ids == null || ids.isEmpty() || ids.size() > 100 || ids.stream().anyMatch(Objects::isNull)
                 || new HashSet<>(ids).size() != ids.size()) {
             throw new BusinessRuleViolationException("A manifest requires 1 to 100 distinct allocation identifiers");
         }
