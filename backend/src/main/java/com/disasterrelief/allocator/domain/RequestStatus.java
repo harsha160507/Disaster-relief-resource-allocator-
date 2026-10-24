@@ -6,6 +6,8 @@ public enum RequestStatus {
     APPROVED,
     PARTIALLY_FULFILLED,
     FULFILLED,
+    PARTIALLY_DELIVERED,
+    DELIVERED,
     REJECTED,
     CANCELLED,
     CLOSED
