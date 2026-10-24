@@ -2,6 +2,7 @@ package com.disasterrelief.allocator.security;
 
 import com.disasterrelief.allocator.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,10 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class IdentityService {
     private final UserProfileRepository users;
+    @Value("${security.oauth2.issuer-uri:}") private String trustedIssuer;
 
     @Transactional(readOnly = true)
     public LocalIdentity resolve(String issuer, String subject) {
-        if (issuer == null || issuer.isBlank() || subject == null || subject.isBlank()) {
+        if (issuer == null || issuer.isBlank() || !issuer.equals(trustedIssuer)
+                || subject == null || subject.isBlank()) {
             throw new BadCredentialsException("A provisioned identity is required");
         }
         var user = users.findByExternalIssuerAndExternalSubject(issuer, subject)
