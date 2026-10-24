@@ -85,6 +85,11 @@ public class OrganizationAccess {
         organization(inventories.findById(id).orElseThrow(() -> missing()).getLocation().getOrganization().getId());
     }
 
+    public UUID inventoryScope() {
+        var identity = actor.current();
+        return identity.isAdministrator() ? null : identity.organizationId();
+    }
+
     public boolean canReadInventory(Inventory inventory) {
         var identity = actor.current();
         return identity.isAdministrator() || inventory.getLocation().getOrganization().getId()
