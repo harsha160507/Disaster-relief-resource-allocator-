@@ -58,9 +58,9 @@ class PostgreSqlMigrationIT {
         UUID organizationId;
         try (var context = startApplication()) {
             Flyway flyway = context.getBean(Flyway.class);
-            assertEquals(4, flyway.info().applied().length);
+            assertEquals(5, flyway.info().applied().length);
             assertEquals(0, flyway.info().pending().length);
-            assertEquals(14, scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema = '" + schema + "'"));
+            assertEquals(15, scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema = '" + schema + "'"));
             var organization = new Organization();
             organization.setName("PostgreSQL migration test");
             organization = context.getBean(OrganizationRepository.class).save(organization);
@@ -101,7 +101,7 @@ class PostgreSqlMigrationIT {
         }
         try (var restarted = startApplication()) {
             assertTrue(restarted.getBean(OrganizationRepository.class).findById(organizationId).isPresent());
-            assertEquals(4, restarted.getBean(Flyway.class).info().applied().length);
+            assertEquals(5, restarted.getBean(Flyway.class).info().applied().length);
             assertEquals(0, restarted.getBean(Flyway.class).migrate().migrationsExecuted);
             assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".allocations"));
         }
@@ -165,7 +165,73 @@ class PostgreSqlMigrationIT {
                 + schema + "' AND table_name = 'organizations' AND column_name = 'name'"));
     }
 
+
+    @Test
+    void upgradingVersionFourPreservesButDisablesUnboundLegacyIdentities() throws Exception {
+        Flyway.configure().dataSource(url, user, password).schemas(schema).defaultSchema(schema)
+                .locations("classpath:db/migration").target("4").load().migrate();
+        UUID id = UUID.randomUUID();
+        execute("INSERT INTO " + schema + ".user_profiles "
+                + "(id, created_at, updated_at, external_subject, display_name, active) VALUES ('"
+                + id + "', now(), now(), 'legacy-subject', 'Legacy User', true)");
+        flyway().migrate();
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".user_profiles WHERE id = '"
+                + id + "' AND active = false AND external_issuer IS NULL"));
+        assertEquals(5, flyway().info().applied().length);
+    }
+
+    @Test
+    void bootstrapAndLastAdministratorProtectionSerializeAcrossConcurrentTransactions() throws Exception {
+        try (var provider = new com.disasterrelief.allocator.support.TestIdentityProvider();
+                var context = startApplication(Map.of(
+                    "security.oauth2.issuer-uri", com.disasterrelief.allocator.support.TestIdentityProvider.ISSUER,
+                    "security.oauth2.audience", com.disasterrelief.allocator.support.TestIdentityProvider.AUDIENCE,
+                    "security.oauth2.jwk-set-uri", provider.jwksUri()))) {
+            var service = context.getBean(com.disasterrelief.allocator.service.AdministrationService.class);
+            var start = new java.util.concurrent.CountDownLatch(1);
+            try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+                var first = pool.submit(() -> { start.await(); return service.bootstrap("first", "First Admin"); });
+                var second = pool.submit(() -> { start.await(); return service.bootstrap("second", "Second Admin"); });
+                start.countDown();
+                assertNotEquals(first.get(30, java.util.concurrent.TimeUnit.SECONDS),
+                        second.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            var repository = context.getBean(UserProfileRepository.class);
+            var initial = repository.findAll().getFirst();
+            var initialView = service.user(initial.getId());
+            var replacement = service.createUser(new com.disasterrelief.allocator.api.dto.AdministrationDtos.UserCreate(
+                    com.disasterrelief.allocator.support.TestIdentityProvider.ISSUER,
+                    "replacement", "Replacement", null, null, Set.of(Role.SYSTEM_ADMIN)));
+            var race = new java.util.concurrent.CountDownLatch(1);
+            try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+                var first = pool.submit(() -> disableAdministrator(service, initialView, race));
+                var second = pool.submit(() -> disableAdministrator(service, replacement, race));
+                race.countDown();
+                assertNotEquals(first.get(30, java.util.concurrent.TimeUnit.SECONDS),
+                        second.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            assertEquals(1, repository.countByActiveTrueAndRolesContaining(Role.SYSTEM_ADMIN));
+        }
+    }
+
+    private boolean disableAdministrator(com.disasterrelief.allocator.service.AdministrationService service,
+            com.disasterrelief.allocator.api.dto.AdministrationDtos.UserView user,
+            java.util.concurrent.CountDownLatch start) throws Exception {
+        start.await();
+        try {
+            service.updateUser(user.id(), new com.disasterrelief.allocator.api.dto.AdministrationDtos.UserUpdate(
+                    user.displayName(), user.email(), null, Set.of(Role.SYSTEM_ADMIN), false, user.version()));
+            return true;
+        } catch (com.disasterrelief.allocator.exception.BusinessRuleViolationException expected) {
+            return false;
+        }
+    }
+
     private ConfigurableApplicationContext startApplication() throws Exception {
+        return startApplication(Map.of());
+    }
+
+    private ConfigurableApplicationContext startApplication(Map<String, Object> additionalProperties) throws Exception {
         var production = PropertiesLoaderUtils.loadProperties(
                 new FileSystemResource("src/main/resources/application.properties"));
         var overrides = new HashMap<String, Object>();
@@ -178,6 +244,7 @@ class PostgreSqlMigrationIT {
         overrides.put("spring.flyway.default-schema", schema);
         overrides.put("server.address", "127.0.0.1");
         overrides.put("server.port", "0");
+        overrides.putAll(additionalProperties);
         var application = new SpringApplication(DisasterReliefBackendApplication.class);
         application.addInitializers(context -> {
             var sources = context.getEnvironment().getPropertySources();
