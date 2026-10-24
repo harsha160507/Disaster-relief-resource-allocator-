@@ -54,11 +54,12 @@ and constraints. The default application schema is PostgreSQL's `public` schema.
 
 For separate migration/runtime accounts, supply `SPRING_FLYWAY_URL`,
 `SPRING_FLYWAY_USER` and `SPRING_FLYWAY_PASSWORD` for the migration account.
-The runtime account needs schema usage and SELECT/INSERT/UPDATE/DELETE on the
-application tables. Arrange grants for both existing and future tables through
-the DBA. No sequence privileges are needed for application-generated UUIDs.
+The runtime account needs schema usage and data privileges for application tables.
+For audit_events, grant SELECT and INSERT only, without UPDATE, DELETE, TRUNCATE
+or DDL/trigger ownership. Arrange per-table grants for existing and future tables
+through the DBA; see [audit protections](audit-history.md). No sequence privileges are needed for application-generated UUIDs.
 
-After startup, `flyway_schema_history` should contain successful versions 1–5.
+After startup, `flyway_schema_history` should contain successful versions 1–6.
 Restarting the backend validates checksums and applies only pending versions.
 
 ## Migration inventory
@@ -70,16 +71,17 @@ Restarting the backend validates checksums and applies only pending versions.
 | V3 | Inventory, shipments, allocations and audit events |
 | V4 | Quantity/coordinate checks and workflow lookup indexes |
 | V5 | Issuer-bound identities, administration versions/lock and disaster ownership |
+| V6 | Audit attribution snapshots, lookup indexes and append-only protections |
 
 The tables reflect the current JPA model, including UUIDs, timestamp precision,
 numeric quantities, enum values, foreign keys and optimistic-lock versions.
-Shipment/audit tables support the existing entities; their application workflows
-remain separate later phases.
+Audit capture is implemented in Phase 3. Shipment application workflows remain
+a later phase.
 
 ## Safe upgrades and existing data
 
 - Back up production data and verify restoration before deployment.
-- Applied migrations are immutable. Add `V5__description.sql` and later versions
+- Applied migrations are immutable. Add `V7__description.sql` and later versions
   for future changes; do not edit a version that has already been applied.
 - Flyway checksum validation runs on startup. Incorrect/missing migration names
   and missing migration locations fail startup.
@@ -110,7 +112,7 @@ For migration verification, create a dedicated empty test database such as
 ./mvnw -Ppostgres-it verify
 ```
 
-Use `mvnw.cmd` on Windows. The profile runs the normal suite plus seven PostgreSQL
+Use `mvnw.cmd` on Windows. The profile runs the normal suite plus nine PostgreSQL
 integration tests. Missing database credentials fail the profile; these checks
 are never silently skipped. Use a dedicated test account with CREATE permission
 on the test database. Each test creates its own random `phase1_it_...` schema and
@@ -118,5 +120,6 @@ drops only that schema afterward; it does not use or drop `public` tables.
 
 The checks cover fresh migration + Hibernate validation, an allocation workflow,
 HTTP server startup, restart/data preservation, repeat migration, integrity
-constraints, legacy-schema rejection, checksum rejection, and schema-drift
-rejection. A passing H2 run alone does not validate PostgreSQL migrations.
+constraints, legacy-schema rejection, checksum/schema-drift rejection,
+legacy identity/audit preservation, concurrent administrator safeguards,
+append-only audit enforcement and atomic business/audit rollback. A passing H2 run alone does not validate PostgreSQL migrations.
