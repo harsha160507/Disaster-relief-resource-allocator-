@@ -43,4 +43,19 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
             + "where inventory.resourceType.id = :resourceTypeId "
             + "and inventory.quantity > inventory.reservedQuantity")
     List<Inventory> findAvailableByResourceTypeId(@Param("resourceTypeId") UUID resourceTypeId);
+    @EntityGraph(attributePaths = {"location", "resourceType"})
+    @Query("select inventory from Inventory inventory where inventory.resourceType.id = :resourceTypeId "
+            + "and inventory.location.organization.id = :organizationId "
+            + "and inventory.quantity > inventory.reservedQuantity")
+    List<Inventory> findAvailableForOrganization(@Param("resourceTypeId") UUID resourceTypeId,
+            @Param("organizationId") UUID organizationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"location", "resourceType"})
+    @Query("select inventory from Inventory inventory where inventory.resourceType.id = :resourceTypeId "
+            + "and inventory.location.organization.id = :organizationId "
+            + "and inventory.quantity > inventory.reservedQuantity order by inventory.id")
+    List<Inventory> findAvailableForOrganizationForUpdate(@Param("resourceTypeId") UUID resourceTypeId,
+            @Param("organizationId") UUID organizationId);
 }
+
