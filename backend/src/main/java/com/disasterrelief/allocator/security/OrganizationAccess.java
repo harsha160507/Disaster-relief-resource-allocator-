@@ -21,6 +21,8 @@ public class OrganizationAccess {
     private final ResourceRequestItemRepository items;
     private final InventoryRepository inventories;
     private final UserProfileRepository users;
+    private final ShipmentRepository shipments;
+    private final AllocationRepository allocations;
 
     public UUID organizationForCreate(UUID requested) {
         var identity = actor.current();
@@ -108,6 +110,17 @@ public class OrganizationAccess {
         var stock = inventories.findById(inventoryId).orElseThrow(() -> missing());
         if (!item.getRequest().getDestination().getOrganization().getId()
                 .equals(stock.getLocation().getOrganization().getId())) denied();
+    }
+
+    public void shipment(UUID id) {
+        var shipment = shipments.findById(id).orElseThrow(() -> missing());
+        organization(shipment.getDestination().getOrganization().getId());
+    }
+
+    public void allocation(UUID id) {
+        var allocation = allocations.findById(id).orElseThrow(() -> missing());
+        organization(allocation.getInventory().getLocation().getOrganization().getId());
+        request(allocation.getRequestItem().getRequest().getId());
     }
 
     private Location locationEntity(UUID id) { return locations.findById(id).orElseThrow(() -> missing()); }
