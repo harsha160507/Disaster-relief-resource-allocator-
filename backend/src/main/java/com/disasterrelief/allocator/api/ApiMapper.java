@@ -27,7 +27,7 @@ public final class ApiMapper {
         return new RequestResponse(value.getId(), value.getReference(), value.getDisaster().getId(),
                 value.getRequestedBy().getId(), value.getDestination().getId(), value.getStatus(), value.getPriority(),
                 value.getNotes(), value.getItems().stream().map(item -> new RequestItemResponse(item.getId(),
-                        item.getResourceType().getId(), item.getRequestedQuantity(), item.getAllocatedQuantity())).toList());
+                        item.getResourceType().getId(), item.getRequestedQuantity(), item.getAllocatedQuantity(), item.getDeliveredQuantity())).toList());
     }
     public static AllocationResponse allocation(Allocation value) {
         return new AllocationResponse(value.getId(), value.getRequestItem().getId(), value.getInventory().getId(),
