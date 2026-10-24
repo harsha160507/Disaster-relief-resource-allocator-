@@ -1,0 +1,4 @@
+# Local Compose/deployment credentials must stay outside Git.
+/.env
+/.env.*
+!/.env.example
