@@ -14,7 +14,6 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, UUID> 
     Optional<UserProfile> findById(UUID id);
 
     @Override
-    @EntityGraph(attributePaths = {"organization", "roles"})
     Page<UserProfile> findAll(Pageable pageable);
 
     @EntityGraph(attributePaths = {"organization", "roles"})
