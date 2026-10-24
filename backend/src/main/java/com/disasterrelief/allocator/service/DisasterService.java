@@ -8,6 +8,7 @@ import com.disasterrelief.allocator.exception.BusinessRuleViolationException;
 import com.disasterrelief.allocator.exception.ResourceNotFoundException;
 import com.disasterrelief.allocator.repository.DisasterRepository;
 import com.disasterrelief.allocator.repository.LocationRepository;
+import com.disasterrelief.allocator.repository.OrganizationRepository;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,17 @@ public class DisasterService {
 
     private final DisasterRepository disasterRepository;
     private final LocationRepository locationRepository;
+    private final OrganizationRepository organizationRepository;
+
+    @Transactional
+    public Disaster createForOrganization(String name, DisasterType type, String description, Instant startedAt, UUID organizationId) {
+        var organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
+        if (!organization.isActive()) throw new BusinessRuleViolationException("Organization is inactive");
+        var disaster = create(name, type, description, startedAt);
+        disaster.setOrganization(organization);
+        return disaster;
+    }
 
     @Transactional
     public Disaster create(String name, DisasterType type, String description, Instant startedAt) {
