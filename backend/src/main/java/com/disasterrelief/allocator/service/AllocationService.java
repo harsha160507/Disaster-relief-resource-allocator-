@@ -85,7 +85,8 @@ public class AllocationService {
                 continue;
             }
             List<Inventory> inventories = inventoryRepository
-                    .findAvailableByResourceTypeIdForUpdate(item.getResourceType().getId());
+                    .findAvailableForOrganizationForUpdate(item.getResourceType().getId(),
+                            request.getDestination().getOrganization().getId());
             for (Inventory inventory : inventories) {
                 if (!inventory.getLocation().getOrganization().getId()
                         .equals(request.getDestination().getOrganization().getId())) continue;
