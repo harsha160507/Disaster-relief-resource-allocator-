@@ -15,6 +15,7 @@ transactions and supported no-op updates do not create success records.
 | Inventory | Receipts and quantity adjustments with before/after quantities |
 | Requests | Creation, added resource items, submission, approval and rejection |
 | Allocation | Each reservation, before/after inventory reservations and item allocations, and resulting request fulfillment transitions |
+| Shipments (Phase 4) | Manifest confirmation, dispatch, delivery and cancellation; allocation, stock and item progress changes |
 
 Reservations carry request, item and inventory identifiers. Item additions are
 recorded against their parent request. All writes for one HTTP request share a
@@ -63,7 +64,7 @@ Optional filters are combined with AND:
 
 | Parameter | Value |
 | --- | --- |
-| entityType | ORGANIZATION, USER_PROFILE, DISASTER, LOCATION, RESOURCE_TYPE, INVENTORY, RESOURCE_REQUEST, ALLOCATION |
+| entityType | ORGANIZATION, USER_PROFILE, DISASTER, LOCATION, RESOURCE_TYPE, INVENTORY, RESOURCE_REQUEST, RESOURCE_REQUEST_ITEM, ALLOCATION, SHIPMENT |
 | entityId | Entity UUID |
 | actorId | Local actor profile UUID |
 | organizationId | Historical owning organization UUID |
@@ -106,5 +107,6 @@ append-only enforcement, committed persistence and atomic rollback.
 
 Direct repository/SQL changes outside application services are not automatically
 captured. Authentication failures, read access, external identity-provider events,
-and future shipment operations are outside this phase. No frontend or scheduled
+are outside this capture scope. Phase 4 adds the shipment operations described in
+[the shipment guide](shipment-workflows.md). No frontend or scheduled
 retention/deletion job is introduced.
