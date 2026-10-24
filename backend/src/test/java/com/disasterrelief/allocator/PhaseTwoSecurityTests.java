@@ -99,6 +99,7 @@ class PhaseTwoSecurityTests {
         for (String token : List.of(
                 provider.token(subject, b -> b.issuer("https://other.example.test")),
                 provider.token(subject, b -> b.audience("other-api")),
+                provider.token(subject, b -> b.audience((String) null)),
                 provider.token(subject, b -> b.expirationTime(Date.from(Instant.now().minusSeconds(3600)))),
                 provider.token(subject, b -> b.expirationTime(null)),
                 provider.token(subject, b -> b.subject(null)))) {
