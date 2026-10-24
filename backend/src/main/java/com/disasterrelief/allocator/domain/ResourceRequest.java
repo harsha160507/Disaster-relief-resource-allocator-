@@ -32,6 +32,10 @@ public class ResourceRequest extends BaseEntity {
     @Column(nullable = false, unique = true, length = 40)
     private String reference;
 
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    private Long version;
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "disaster_id", nullable = false)
