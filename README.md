@@ -53,8 +53,18 @@ endpoints, deactivation, and organization access checks.
 See [Identity and administration setup](docs/identity-and-administration.md) for
 issuer/audience configuration, first-administrator bootstrap and API examples.
 
+## Audit history
+
+Phase 3 records successful administrative and relief-workflow changes with trusted
+actor attribution, historical roles/organization, and privacy-conscious details.
+Administrators can search a bounded, read-only history API. PostgreSQL protects
+stored events from updates, deletes and truncation.
+
+See [Audit history guide](docs/audit-history.md) for coverage, filters, transaction
+guarantees and operational boundaries.
+
 ## Current scope
 
-This repository currently contains the backend. Frontend, shipment operations, audit capture and CI are planned later phases. Normal authenticated API access also requires an external JWT issuer
+This repository currently contains the backend. Frontend, shipment operations and CI are planned later phases. Normal authenticated API access also requires an external JWT issuer
 configured with `security.oauth2.issuer-uri` and `security.oauth2.audience`, plus a provisioned local profile; without these, protected endpoints
 remain inaccessible. Database setup alone does not create users or login sessions.
