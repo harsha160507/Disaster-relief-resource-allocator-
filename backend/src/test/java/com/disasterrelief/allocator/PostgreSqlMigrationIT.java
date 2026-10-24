@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.*;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
+import org.hibernate.tool.schema.spi.SchemaManagementException;
 import org.junit.jupiter.api.*;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.web.server.context.WebServerApplicationContext;
@@ -24,8 +25,6 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertiesPropertySource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * Opt-in real PostgreSQL checks: mvn -Ppostgres-it verify.
@@ -156,10 +155,12 @@ class PostgreSqlMigrationIT {
             }
         });
         StringBuilder messages = new StringBuilder();
+        boolean schemaValidationFailure = false;
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
             messages.append(cause.getMessage()).append('\n');
+            schemaValidationFailure |= cause instanceof SchemaManagementException;
         }
-        assertTrue(messages.toString().contains("Schema-validation"), messages.toString());
+        assertTrue(schemaValidationFailure, messages.toString());
         assertEquals(0, scalar("SELECT count(*) FROM information_schema.columns WHERE table_schema = '"
                 + schema + "' AND table_name = 'organizations' AND column_name = 'name'"));
     }
