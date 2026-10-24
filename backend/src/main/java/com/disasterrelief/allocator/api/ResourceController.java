@@ -45,7 +45,7 @@ public class ResourceController {
 
     @GetMapping("/inventory/resource-types/{resourceTypeId}/available")
     public List<InventoryResponse> available(@PathVariable UUID resourceTypeId) {
-        return service.available(resourceTypeId).stream().filter(access::canReadInventory).map(ApiMapper::inventory).toList();
+        return service.availableForOrganization(resourceTypeId, access.inventoryScope()).stream().map(ApiMapper::inventory).toList();
     }
 
     @GetMapping("/inventory/{id}")
