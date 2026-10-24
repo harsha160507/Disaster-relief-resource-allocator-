@@ -18,6 +18,7 @@ public class AdministrationService {
     private final OrganizationRepository organizations;
     private final UserProfileRepository users;
     private final AdministrationLockRepository locks;
+    private final AuditWriter audit;
     @Value("${security.oauth2.issuer-uri:}") private String trustedIssuer;
 
     @Transactional
@@ -25,7 +26,10 @@ public class AdministrationService {
         lock();
         var organization = new Organization();
         setOrganization(organization, input.name(), input.code(), input.contactEmail());
-        return AdministrationDtos.organization(organizations.saveAndFlush(organization));
+        organizations.saveAndFlush(organization);
+        audit.record(AuditAction.CREATED, "ORGANIZATION", organization.getId(), organization.getId(),
+                "organization.created", AuditSnapshots.organization(organization));
+        return AdministrationDtos.organization(organization);
     }
 
     @Transactional
@@ -33,9 +37,17 @@ public class AdministrationService {
         lock();
         var organization = organizationEntity(id);
         version(organization.getVersion(), input.version());
+        var before = AuditSnapshots.organization(organization);
+        var changed = AuditSnapshots.changed("name", organization.getName(), input.name().trim(),
+                "code", organization.getCode(), input.code() == null || input.code().isBlank() ? null : input.code().trim().toUpperCase(Locale.ROOT),
+                "contactEmail", organization.getContactEmail(), input.contactEmail() == null || input.contactEmail().isBlank() ? null : input.contactEmail().trim(),
+                "active", organization.isActive(), input.active());
         setOrganization(organization, input.name(), input.code(), input.contactEmail());
         organization.setActive(input.active());
-        return AdministrationDtos.organization(organizations.saveAndFlush(organization));
+        organizations.saveAndFlush(organization);
+        if (!changed.isEmpty()) audit.record(AuditAction.UPDATED, "ORGANIZATION", organization.getId(), organization.getId(),
+                "organization.updated", AuditSnapshots.change(before, AuditSnapshots.organization(organization), changed));
+        return AdministrationDtos.organization(organization);
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +73,11 @@ public class AdministrationService {
         user.setExternalIssuer(input.issuer());
         user.setExternalSubject(input.subject());
         updateMembership(user, input.displayName(), input.email(), input.organizationId(), input.roles(), true);
-        return AdministrationDtos.user(users.saveAndFlush(user));
+        users.saveAndFlush(user);
+        audit.record(AuditAction.CREATED, "USER_PROFILE", user.getId(),
+                user.getOrganization() == null ? null : user.getOrganization().getId(),
+                "user.created", AuditSnapshots.user(user));
+        return AdministrationDtos.user(user);
     }
 
     @Transactional
@@ -69,13 +85,22 @@ public class AdministrationService {
         lock();
         var user = userEntity(id);
         version(user.getVersion(), input.version());
+        var before = AuditSnapshots.user(user);
+        var changed = AuditSnapshots.changed("displayName", user.getDisplayName(), input.displayName().trim(),
+                "email", user.getEmail(), input.email() == null || input.email().isBlank() ? null : input.email().trim(),
+                "organizationId", user.getOrganization() == null ? null : user.getOrganization().getId(), input.organizationId(),
+                "roles", user.getRoles(), input.roles(), "active", user.isActive(), input.active());
         if (effectiveAdmin(user) && (!input.active() || !input.roles().contains(Role.SYSTEM_ADMIN))
                 && activeAdministrators() <= 1) {
             throw new BusinessRuleViolationException("The last active system administrator must remain enabled");
         }
         // Identity binding is immutable; provision a replacement identity explicitly.
         updateMembership(user, input.displayName(), input.email(), input.organizationId(), input.roles(), input.active());
-        return AdministrationDtos.user(users.saveAndFlush(user));
+        users.saveAndFlush(user);
+        if (!changed.isEmpty()) audit.record(AuditAction.UPDATED, "USER_PROFILE", user.getId(),
+                user.getOrganization() == null ? null : user.getOrganization().getId(),
+                "user.updated", AuditSnapshots.change(before, AuditSnapshots.user(user), changed));
+        return AdministrationDtos.user(user);
     }
 
     @Transactional(readOnly = true)
@@ -105,6 +130,7 @@ public class AdministrationService {
         user.setDisplayName(displayName.trim());
         user.setRoles(new HashSet<>(Set.of(Role.SYSTEM_ADMIN)));
         users.saveAndFlush(user);
+        audit.bootstrap(user.getId(), AuditSnapshots.user(user));
         return true;
     }
 
