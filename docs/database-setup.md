@@ -9,7 +9,8 @@
 Flyway creates/upgrades the tables before Hibernate checks their mappings.
 Hibernate remains in `validate` mode; it does not create, alter or drop tables.
 The JDBC driver and Flyway PostgreSQL support are runtime dependencies.
-No organization/user seed data or identity-provider setup is added in this phase.
+Identity-provider configuration and the optional first-administrator bootstrap are
+covered in [the identity guide](identity-and-administration.md).
 
 ## Local development with Docker Compose
 
@@ -57,7 +58,7 @@ The runtime account needs schema usage and SELECT/INSERT/UPDATE/DELETE on the
 application tables. Arrange grants for both existing and future tables through
 the DBA. No sequence privileges are needed for application-generated UUIDs.
 
-After startup, `flyway_schema_history` should contain successful versions 1–4.
+After startup, `flyway_schema_history` should contain successful versions 1–5.
 Restarting the backend validates checksums and applies only pending versions.
 
 ## Migration inventory
@@ -68,6 +69,7 @@ Restarting the backend validates checksums and applies only pending versions.
 | V2 | Disasters, affected locations, resource requests and items |
 | V3 | Inventory, shipments, allocations and audit events |
 | V4 | Quantity/coordinate checks and workflow lookup indexes |
+| V5 | Issuer-bound identities, administration versions/lock and disaster ownership |
 
 The tables reflect the current JPA model, including UUIDs, timestamp precision,
 numeric quantities, enum values, foreign keys and optimistic-lock versions.
@@ -108,7 +110,7 @@ For migration verification, create a dedicated empty test database such as
 ./mvnw -Ppostgres-it verify
 ```
 
-Use `mvnw.cmd` on Windows. The profile runs the normal suite plus five PostgreSQL
+Use `mvnw.cmd` on Windows. The profile runs the normal suite plus seven PostgreSQL
 integration tests. Missing database credentials fail the profile; these checks
 are never silently skipped. Use a dedicated test account with CREATE permission
 on the test database. Each test creates its own random `phase1_it_...` schema and
