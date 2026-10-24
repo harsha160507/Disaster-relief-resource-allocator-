@@ -1,11 +1,14 @@
 # Disaster Relief Resource Allocator
 
-## PostgreSQL deployment
+A Spring Boot backend for disaster response, inventory, resource requests and allocations.
 
-The backend uses PostgreSQL in production. The PostgreSQL JDBC driver is included
-as a runtime dependency, while H2 is restricted to the test scope.
+## Database setup
 
-Set these environment variables before starting the backend:
+The backend uses PostgreSQL. Flyway now creates the initial application schema
+and applies versioned upgrades before Hibernate validates the entity mappings.
+Start with an empty database/schema; the database itself must be provisioned first.
+
+Required environment variables:
 
 ```text
 DB_URL=jdbc:postgresql://<host>:<port>/<database>
@@ -13,20 +16,38 @@ DB_USERNAME=<database-user>
 DB_PASSWORD=<database-password>
 ```
 
-The application reads these variables through Spring configuration. Credentials
-must be supplied by the deployment environment or a secrets manager; do not put
-them in source files, `.properties` files, or committed container configuration.
+Supply credentials through the deployment environment or a secrets manager.
+Never commit real credentials.
 
-Production uses `spring.jpa.hibernate.ddl-auto=validate`, so it verifies the
-existing PostgreSQL schema without creating, altering, or dropping data. The
-database must therefore be provisioned before startup.
+See [Database setup and migration guide](docs/database-setup.md) for local
+PostgreSQL with Docker Compose, existing-server provisioning, production account
+separation, migration safety, and the PostgreSQL integration-test command.
 
-The repository does not currently contain Flyway or Liquibase migrations. A
-versioned migration tool should be introduced before the first production
-deployment, with an initial baseline migration generated and reviewed from the
-JPA schema, followed by forward-only migrations for future changes. Until then,
-schema creation and upgrades are an explicit deployment responsibility.
+## Run and test
 
-Tests use an isolated in-memory H2 database through
-`backend/src/test/resources/application.properties`; this test configuration is
-not used by production.
+From `backend/`, using JDK 25 or later:
+
+```text
+./mvnw spring-boot:run
+./mvnw test
+```
+
+Use `mvnw.cmd` on Windows. Normal tests use an isolated H2 database with Flyway
+disabled. To verify real PostgreSQL migrations, set `PG_TEST_URL`,
+`PG_TEST_USERNAME` and `PG_TEST_PASSWORD` for a dedicated test database, then run:
+
+```text
+./mvnw -Ppostgres-it verify
+```
+
+Production keeps `spring.jpa.hibernate.ddl-auto=validate`, checksum validation,
+automatic-baseline protection and Flyway clean protection enabled.
+Applied migrations must remain unchanged; add a new version for future changes.
+
+## Current scope
+
+This repository currently contains the backend. Frontend, user/organization
+provisioning APIs, shipment operations, audit capture and CI are planned later
+phases. Normal authenticated API access also requires an external JWT issuer
+configured with `security.oauth2.issuer-uri`; without one, protected endpoints
+remain inaccessible. Database setup alone does not create users or login sessions.
