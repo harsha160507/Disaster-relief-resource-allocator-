@@ -30,7 +30,7 @@ public class AuditHistoryService {
             throw new IllegalArgumentException("Page must be 0 to 100000 and size 1 to 100");
         }
         if (entityType != null && !Set.of("ORGANIZATION", "USER_PROFILE", "DISASTER", "LOCATION",
-                "RESOURCE_TYPE", "INVENTORY", "RESOURCE_REQUEST", "ALLOCATION").contains(entityType)) {
+                "RESOURCE_TYPE", "INVENTORY", "RESOURCE_REQUEST", "RESOURCE_REQUEST_ITEM", "ALLOCATION", "SHIPMENT").contains(entityType)) {
             throw new IllegalArgumentException("Unknown entity type");
         }
         if (from != null && to != null && from.isAfter(to)) throw new IllegalArgumentException("Invalid time range");
