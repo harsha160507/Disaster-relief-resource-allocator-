@@ -58,7 +58,7 @@ public class ResourceService {
                 });
         BigDecimal before = inventory.getQuantity();
         inventory.setQuantity(before.add(quantity));
-        inventoryRepository.save(inventory);
+        inventory = inventoryRepository.save(inventory);
         quantityEvent(inventory, before, "inventory.received");
         return inventory;
     }
@@ -75,7 +75,7 @@ public class ResourceService {
         }
         BigDecimal before = inventory.getQuantity();
         inventory.setQuantity(updatedQuantity);
-        inventoryRepository.save(inventory);
+        inventory = inventoryRepository.save(inventory);
         quantityEvent(inventory, before, "inventory.adjusted");
         return inventory;
     }
