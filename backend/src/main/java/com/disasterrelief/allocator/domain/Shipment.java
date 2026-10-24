@@ -25,6 +25,10 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Shipment extends BaseEntity {
 
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    private Long version;
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "destination_location_id", nullable = false)
