@@ -43,6 +43,7 @@ public class ShipmentService {
                 throw new BusinessRuleViolationException("Only unassigned reserved allocations can enter a shipment");
             }
         }
+        requirePendingQuantities(manifest);
         var shipment = new Shipment();
         shipment.setDestination(destination);
         shipment.setTrackingReference(tracking);
@@ -196,6 +197,7 @@ public class ShipmentService {
                 throw new BusinessRuleViolationException("Shipment manifest contains an incompatible allocation");
             }
         }
+        requirePendingQuantities(manifest);
         return new Manifest(shipment, manifest, lockedRequests);
     }
 
@@ -226,8 +228,21 @@ public class ShipmentService {
         return result;
     }
 
+    private void requirePendingQuantities(List<Allocation> manifest) {
+        var quantities = totals(manifest, false);
+        for (var allocation : manifest) {
+            var item = allocation.getRequestItem();
+            if (item.getAllocatedQuantity().subtract(item.getDeliveredQuantity()).compareTo(quantities.get(item.getId())) < 0) {
+                throw new BusinessRuleViolationException("Manifest exceeds the item's pending allocated quantity");
+            }
+        }
+    }
+
     private void validateDestination(Allocation allocation, Location destination) {
         var request = allocation.getRequestItem().getRequest();
+        if (!allocation.getRequestItem().getResourceType().getId().equals(allocation.getInventory().getResourceType().getId())) {
+            throw new BusinessRuleViolationException("Allocation stock does not match the requested resource");
+        }
         if (!request.getDestination().getId().equals(destination.getId())
                 || !allocation.getInventory().getLocation().getOrganization().getId()
                         .equals(destination.getOrganization().getId())) {
