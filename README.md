@@ -63,8 +63,18 @@ stored events from updates, deletes and truncation.
 See [Audit history guide](docs/audit-history.md) for coverage, filters, transaction
 guarantees and operational boundaries.
 
+## Shipment workflows
+
+Phase 4 connects reserved allocations to shipment creation, dispatch, delivery and
+cancellation. Stock leaves inventory once at dispatch; actual delivery progress
+is tracked separately from allocation. Shipment operations enforce organization
+access and append transactional audit history.
+
+See [Shipment workflow guide](docs/shipment-workflows.md) for accounting, role
+permissions, API contracts and migration details.
+
 ## Current scope
 
-This repository currently contains the backend. Frontend, shipment operations and CI are planned later phases. Normal authenticated API access also requires an external JWT issuer
+This repository currently contains the backend. Frontend and CI are planned later phases. Normal authenticated API access also requires an external JWT issuer
 configured with `security.oauth2.issuer-uri` and `security.oauth2.audience`, plus a provisioned local profile; without these, protected endpoints
 remain inaccessible. Database setup alone does not create users or login sessions.
