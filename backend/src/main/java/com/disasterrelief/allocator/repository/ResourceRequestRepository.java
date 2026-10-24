@@ -9,6 +9,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.EntityGraph;
 
 public interface ResourceRequestRepository extends JpaRepository<ResourceRequest, UUID> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select r from ResourceRequest r where r.id = :id")
+    Optional<ResourceRequest> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
+
 
     @Override
     @EntityGraph(attributePaths = {"disaster", "requestedBy", "destination", "items", "items.resourceType"})
