@@ -26,7 +26,7 @@ public class AdministrationService {
         lock();
         var organization = new Organization();
         setOrganization(organization, input.name(), input.code(), input.contactEmail());
-        organizations.saveAndFlush(organization);
+        organization = organizations.saveAndFlush(organization);
         audit.record(AuditAction.CREATED, "ORGANIZATION", organization.getId(), organization.getId(),
                 "organization.created", AuditSnapshots.organization(organization));
         return AdministrationDtos.organization(organization);
@@ -44,7 +44,7 @@ public class AdministrationService {
                 "active", organization.isActive(), input.active());
         setOrganization(organization, input.name(), input.code(), input.contactEmail());
         organization.setActive(input.active());
-        organizations.saveAndFlush(organization);
+        organization = organizations.saveAndFlush(organization);
         if (!changed.isEmpty()) audit.record(AuditAction.UPDATED, "ORGANIZATION", organization.getId(), organization.getId(),
                 "organization.updated", AuditSnapshots.change(before, AuditSnapshots.organization(organization), changed));
         return AdministrationDtos.organization(organization);
@@ -73,7 +73,7 @@ public class AdministrationService {
         user.setExternalIssuer(input.issuer());
         user.setExternalSubject(input.subject());
         updateMembership(user, input.displayName(), input.email(), input.organizationId(), input.roles(), true);
-        users.saveAndFlush(user);
+        user = users.saveAndFlush(user);
         audit.record(AuditAction.CREATED, "USER_PROFILE", user.getId(),
                 user.getOrganization() == null ? null : user.getOrganization().getId(),
                 "user.created", AuditSnapshots.user(user));
@@ -96,7 +96,7 @@ public class AdministrationService {
         }
         // Identity binding is immutable; provision a replacement identity explicitly.
         updateMembership(user, input.displayName(), input.email(), input.organizationId(), input.roles(), input.active());
-        users.saveAndFlush(user);
+        user = users.saveAndFlush(user);
         if (!changed.isEmpty()) audit.record(AuditAction.UPDATED, "USER_PROFILE", user.getId(),
                 user.getOrganization() == null ? null : user.getOrganization().getId(),
                 "user.updated", AuditSnapshots.change(before, AuditSnapshots.user(user), changed));
@@ -129,7 +129,7 @@ public class AdministrationService {
         user.setExternalSubject(subject);
         user.setDisplayName(displayName.trim());
         user.setRoles(new HashSet<>(Set.of(Role.SYSTEM_ADMIN)));
-        users.saveAndFlush(user);
+        user = users.saveAndFlush(user);
         audit.bootstrap(user.getId(), AuditSnapshots.user(user));
         return true;
     }
