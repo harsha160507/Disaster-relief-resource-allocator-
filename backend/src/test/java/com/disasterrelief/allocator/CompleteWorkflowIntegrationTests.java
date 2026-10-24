@@ -64,17 +64,17 @@ class CompleteWorkflowIntegrationTests {
                 """.formatted(organizationId), "PARTNER_MANAGER");
 
         mockMvc.perform(post("/api/v1/disasters/{id}/activation", disasterId)
-                .with(user("coordinator").roles("DISASTER_COORDINATOR")))
+                .with(actor("DISASTER_COORDINATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
 
         mockMvc.perform(put("/api/v1/disasters/{id}/affected-locations/{locationId}", disasterId, locationId)
-                .with(user("coordinator").roles("DISASTER_COORDINATOR")))
+                .with(actor("DISASTER_COORDINATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.affectedLocationIds[0]").value(locationId.toString()));
 
         mockMvc.perform(get("/api/v1/disasters/{id}", disasterId)
-                .with(user("coordinator").roles("DISASTER_COORDINATOR")))
+                .with(actor("DISASTER_COORDINATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.affectedLocationIds[0]").value(locationId.toString()));
@@ -91,41 +91,41 @@ class CompleteWorkflowIntegrationTests {
                 {"reference":"%s","disasterId":"%s","requesterId":"%s","destinationId":"%s","priority":"HIGH","notes":"Integration test"}
                 """.formatted(reference, disasterId, requesterId, locationId), "FIELD_AGENT");
         UUID requestItemId = UUID.fromString(JsonPath.read(mockMvc.perform(post("/api/v1/requests/{id}/items", requestId)
-                .with(user("field-agent").roles("FIELD_AGENT"))
+                .with(actor("FIELD_AGENT"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"resourceTypeId\":\"%s\",\"quantity\":20}".formatted(resourceTypeId)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.items[0].id"));
 
         mockMvc.perform(get("/api/v1/requests/{id}", requestId)
-                .with(user("field-agent").roles("FIELD_AGENT")))
+                .with(actor("FIELD_AGENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(requestItemId.toString()))
                 .andExpect(jsonPath("$.items[0].resourceTypeId").value(resourceTypeId.toString()));
 
         mockMvc.perform(post("/api/v1/requests/{id}/submission", requestId)
-                .with(user("field-agent").roles("FIELD_AGENT")))
+                .with(actor("FIELD_AGENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
         mockMvc.perform(post("/api/v1/requests/{id}/approval", requestId)
-                .with(user("coordinator").roles("DISASTER_COORDINATOR")))
+                .with(actor("DISASTER_COORDINATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("APPROVED"));
 
         mockMvc.perform(post("/api/v1/allocations/requests/{id}", requestId)
-                .with(user("inventory-manager").roles("INVENTORY_MANAGER")))
+                .with(actor("INVENTORY_MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].requestItemId").value(requestItemId.toString()))
                 .andExpect(jsonPath("$[0].inventoryId").value(inventoryId.toString()))
                 .andExpect(jsonPath("$[0].quantity").value(20));
 
         mockMvc.perform(get("/api/v1/allocations/request-items/{id}", requestItemId)
-                .with(user("viewer").roles("VIEWER")))
+                .with(actor("VIEWER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("RESERVED"))
                 .andExpect(jsonPath("$[0].quantity").value(20));
 
         mockMvc.perform(patch("/api/v1/inventory/{id}", inventoryId)
-                .with(user("inventory-manager").roles("INVENTORY_MANAGER"))
+                .with(actor("INVENTORY_MANAGER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"change\":10}"))
                 .andExpect(status().isOk())
@@ -137,25 +137,25 @@ class CompleteWorkflowIntegrationTests {
                 {"reference":"REQ-%s","disasterId":"%s","requesterId":"%s","destinationId":"%s","priority":"CRITICAL"}
                 """.formatted(UUID.randomUUID().toString().substring(0, 8), disasterId, requesterId, locationId), "FIELD_AGENT");
         mockMvc.perform(post("/api/v1/requests/{id}/items", insufficientRequestId)
-                .with(user("field-agent").roles("FIELD_AGENT"))
+                .with(actor("FIELD_AGENT"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"resourceTypeId\":\"%s\",\"quantity\":100}".formatted(resourceTypeId)))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/requests/{id}/submission", insufficientRequestId)
-                .with(user("field-agent").roles("FIELD_AGENT"))).andExpect(status().isOk());
+                .with(actor("FIELD_AGENT"))).andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/requests/{id}/approval", insufficientRequestId)
-                .with(user("coordinator").roles("DISASTER_COORDINATOR"))).andExpect(status().isOk());
+                .with(actor("DISASTER_COORDINATOR"))).andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/allocations/requests/{id}", insufficientRequestId)
-                .with(user("inventory-manager").roles("INVENTORY_MANAGER")))
+                .with(actor("INVENTORY_MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].quantity").value(40));
         mockMvc.perform(get("/api/v1/requests/{id}", insufficientRequestId)
-                .with(user("field-agent").roles("FIELD_AGENT")))
+                .with(actor("FIELD_AGENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PARTIALLY_FULFILLED"));
 
         mockMvc.perform(post("/api/v1/disasters/{id}/closure", disasterId)
-                .with(user("coordinator").roles("DISASTER_COORDINATOR"))
+                .with(actor("DISASTER_COORDINATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"endedAt\":\"2026-01-02T00:00:00Z\"}"))
                 .andExpect(status().isOk())
@@ -167,26 +167,36 @@ class CompleteWorkflowIntegrationTests {
         mockMvc.perform(get("/api/v1/requests")).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
         mockMvc.perform(post("/api/v1/resource-types")
-                .with(user("field-agent").roles("FIELD_AGENT"))
+                .with(actor("FIELD_AGENT"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Nope\",\"unitOfMeasure\":\"items\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("AUTHORIZATION_DENIED"));
         mockMvc.perform(get("/api/v1/disasters/{id}", UUID.randomUUID())
-                .with(user("coordinator").roles("DISASTER_COORDINATOR")))
+                .with(actor("DISASTER_COORDINATOR")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/disasters")
-                .with(user("coordinator").roles("DISASTER_COORDINATOR"))
+                .with(actor("DISASTER_COORDINATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"FLOOD\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
+    private org.springframework.test.web.servlet.request.RequestPostProcessor actor(String role) {
+        var identity = new com.disasterrelief.allocator.security.LocalIdentity(requesterId,
+                "https://workflow.test", "workflow-agent", organizationId,
+                java.util.Set.of(com.disasterrelief.allocator.domain.Role.valueOf(role)));
+        return org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(
+                org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+                        identity, null, java.util.List.of(
+                            new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role))));
+    }
+
     private UUID postId(String path, String body, String role) throws Exception {
         MvcResult result = mockMvc.perform(post(path)
-                .with(user(role.toLowerCase()).roles(role))
+                .with(actor(role))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
                 .andExpect(status().isCreated())
