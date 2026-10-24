@@ -1,17 +1,25 @@
 package com.disasterrelief.allocator.repository;
 
-import com.disasterrelief.allocator.domain.Role;
-import com.disasterrelief.allocator.domain.UserProfile;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.disasterrelief.allocator.domain.*;
+import java.util.*;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.repository.*;
 
 public interface UserProfileRepository extends JpaRepository<UserProfile, UUID> {
+    @EntityGraph(attributePaths = {"organization", "roles"})
+    Optional<UserProfile> findByExternalIssuerAndExternalSubject(String issuer, String subject);
 
-    Optional<UserProfile> findByExternalSubject(String externalSubject);
+    @Override
+    @EntityGraph(attributePaths = {"organization", "roles"})
+    Optional<UserProfile> findById(UUID id);
 
+    @Override
+    @EntityGraph(attributePaths = {"organization", "roles"})
+    Page<UserProfile> findAll(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"organization", "roles"})
     List<UserProfile> findByOrganizationId(UUID organizationId);
 
     List<UserProfile> findByRolesContaining(Role role);
+    long countByActiveTrueAndRolesContaining(Role role);
 }
