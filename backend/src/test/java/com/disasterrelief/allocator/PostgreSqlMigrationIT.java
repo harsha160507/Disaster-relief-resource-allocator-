@@ -58,7 +58,7 @@ class PostgreSqlMigrationIT {
         UUID organizationId;
         try (var context = startApplication()) {
             Flyway flyway = context.getBean(Flyway.class);
-            assertEquals(5, flyway.info().applied().length);
+            assertEquals(6, flyway.info().applied().length);
             assertEquals(0, flyway.info().pending().length);
             assertEquals(15, scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema = '" + schema + "'"));
             var organization = new Organization();
@@ -101,7 +101,7 @@ class PostgreSqlMigrationIT {
         }
         try (var restarted = startApplication()) {
             assertTrue(restarted.getBean(OrganizationRepository.class).findById(organizationId).isPresent());
-            assertEquals(5, restarted.getBean(Flyway.class).info().applied().length);
+            assertEquals(6, restarted.getBean(Flyway.class).info().applied().length);
             assertEquals(0, restarted.getBean(Flyway.class).migrate().migrationsExecuted);
             assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".allocations"));
         }
@@ -177,7 +177,7 @@ class PostgreSqlMigrationIT {
         flyway().migrate();
         assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".user_profiles WHERE id = '"
                 + id + "' AND active = false AND external_issuer IS NULL"));
-        assertEquals(5, flyway().info().applied().length);
+        assertEquals(6, flyway().info().applied().length);
     }
 
     @Test
@@ -211,6 +211,62 @@ class PostgreSqlMigrationIT {
                         second.get(30, java.util.concurrent.TimeUnit.SECONDS));
             }
             assertEquals(1, repository.countByActiveTrueAndRolesContaining(Role.SYSTEM_ADMIN));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events WHERE source = 'BOOTSTRAP'"));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events WHERE operation = 'user.updated'"));
+        }
+    }
+
+    @Test
+    void versionFiveAuditRowsSurviveUpgradeAndAllMutationFormsAreBlocked() throws Exception {
+        Flyway.configure().dataSource(url, user, password).schemas(schema).defaultSchema(schema)
+                .locations("classpath:db/migration").target("5").load().migrate();
+        UUID id = UUID.randomUUID();
+        execute("INSERT INTO " + schema + ".audit_events "
+                + "(id, created_at, updated_at, action, entity_type, entity_id, details) VALUES ('"
+                + id + "', now(), now(), 'CREATED', 'legacy_entity', '" + UUID.randomUUID() + "', 'preserved')");
+        flyway().migrate();
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema
+                + ".audit_events WHERE id = '" + id + "' AND source = 'LEGACY' AND details = 'preserved'"));
+        // A JDBC connection using the test schema mirrors the production connection search path.
+        try (var connection = connection(); var statement = connection.createStatement()) {
+            statement.execute("SET search_path TO " + schema);
+            for (String sql : List.of("UPDATE audit_events SET details = 'changed'",
+                    "DELETE FROM audit_events", "TRUNCATE audit_events")) {
+                assertEquals("55000", assertThrows(SQLException.class, () -> statement.execute(sql)).getSQLState());
+            }
+        }
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events"));
+    }
+
+    @Test
+    void committedAuditSurvivesRestartAndAuditFailureRollsBackBusinessChange() throws Exception {
+        try (var context = startApplication()) {
+            var service = context.getBean(AdministrationService.class);
+            var created = service.createOrganization(new com.disasterrelief.allocator.api.dto.AdministrationDtos.OrganizationCreate(
+                    "Committed organization", "committed", null));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema
+                    + ".audit_events WHERE entity_id = '" + created.id() + "' AND source = 'SYSTEM_INTERNAL'"));
+            var transaction = new org.springframework.transaction.support.TransactionTemplate(
+                    context.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+            transaction.executeWithoutResult(status -> {
+                service.createOrganization(new com.disasterrelief.allocator.api.dto.AdministrationDtos.OrganizationCreate(
+                        "Rolled back organization", "rollback", null));
+                status.setRollbackOnly();
+            });
+            assertEquals(0, scalar("SELECT count(*) FROM " + schema + ".organizations WHERE code = 'ROLLBACK'"));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events"));
+
+            // Inject an append failure only in this disposable schema.
+            execute("ALTER TABLE " + schema + ".audit_events ADD CONSTRAINT test_reject_append CHECK (operation <> 'organization.created') NOT VALID");
+            assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+                    service.createOrganization(new com.disasterrelief.allocator.api.dto.AdministrationDtos.OrganizationCreate(
+                            "Must roll back", "audit_failure", null)));
+            assertEquals(0, scalar("SELECT count(*) FROM " + schema + ".organizations WHERE code = 'AUDIT_FAILURE'"));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events"));
+            execute("ALTER TABLE " + schema + ".audit_events DROP CONSTRAINT test_reject_append");
+        }
+        try (var restarted = startApplication()) {
+            assertEquals(1, restarted.getBean(com.disasterrelief.allocator.repository.AuditEventRepository.class).count());
         }
     }
 
