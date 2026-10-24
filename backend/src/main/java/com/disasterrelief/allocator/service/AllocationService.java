@@ -35,16 +35,20 @@ public class AllocationService {
     @Transactional
     public Allocation reserve(UUID requestItemId, UUID inventoryId, BigDecimal quantity) {
         requirePositive(quantity);
+        UUID requestId = requestItemRepository.requestIdForItem(requestItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Request item not found: " + requestItemId));
+        ResourceRequest request = requestRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Resource request not found: " + requestId));
         ResourceRequestItem item = requestItemRepository.findById(requestItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Request item not found: " + requestItemId));
         Inventory inventory = inventoryRepository.findByIdForUpdate(inventoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + inventoryId));
-        ResourceRequest request = item.getRequest();
         if (!inventory.getLocation().getOrganization().getId().equals(request.getDestination().getOrganization().getId())) {
             throw new BusinessRuleViolationException("Inventory and request must belong to the same organization");
         }
         if (request.getStatus() != RequestStatus.APPROVED
-                && request.getStatus() != RequestStatus.PARTIALLY_FULFILLED) {
+                && request.getStatus() != RequestStatus.PARTIALLY_FULFILLED
+                && request.getStatus() != RequestStatus.PARTIALLY_DELIVERED) {
             throw new BusinessRuleViolationException("Only approved requests can receive allocations");
         }
         if (!inventory.getResourceType().getId().equals(item.getResourceType().getId())) {
@@ -75,22 +79,27 @@ public class AllocationService {
 
     @Transactional
     public List<Allocation> allocate(UUID requestId) {
-        ResourceRequest request = requestRepository.findById(requestId)
+        ResourceRequest request = requestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resource request not found: " + requestId));
         if (request.getStatus() != RequestStatus.APPROVED
-                && request.getStatus() != RequestStatus.PARTIALLY_FULFILLED) {
+                && request.getStatus() != RequestStatus.PARTIALLY_FULFILLED
+                && request.getStatus() != RequestStatus.PARTIALLY_DELIVERED) {
             throw new BusinessRuleViolationException("Only approved requests can be allocated");
         }
 
         List<Allocation> allocations = new ArrayList<>();
+        var resourceIds = request.getItems().stream().map(i -> i.getResourceType().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        List<Inventory> candidates = resourceIds.isEmpty() ? List.of()
+                : inventoryRepository.findAvailableForTypesForUpdate(resourceIds,
+                        request.getDestination().getOrganization().getId());
         for (ResourceRequestItem item : request.getItems()) {
             BigDecimal remainingNeed = item.getRequestedQuantity().subtract(item.getAllocatedQuantity());
             if (remainingNeed.signum() <= 0) {
                 continue;
             }
-            List<Inventory> inventories = inventoryRepository
-                    .findAvailableForOrganizationForUpdate(item.getResourceType().getId(),
-                            request.getDestination().getOrganization().getId());
+            List<Inventory> inventories = candidates.stream()
+                    .filter(i -> i.getResourceType().getId().equals(item.getResourceType().getId())).toList();
             for (Inventory inventory : inventories) {
                 if (!inventory.getLocation().getOrganization().getId()
                         .equals(request.getDestination().getOrganization().getId())) continue;
@@ -130,21 +139,7 @@ public class AllocationService {
     }
 
     private void updateRequestStatus(ResourceRequest request) {
-        RequestStatus before = request.getStatus();
-        boolean hasUnfulfilledItem = request.getItems().stream()
-                .anyMatch(item -> item.getAllocatedQuantity().compareTo(item.getRequestedQuantity()) < 0);
-        boolean hasAllocation = request.getItems().stream()
-                .anyMatch(item -> item.getAllocatedQuantity().signum() > 0);
-        if (!hasUnfulfilledItem && !request.getItems().isEmpty()) {
-            request.setStatus(RequestStatus.FULFILLED);
-        } else if (hasAllocation) {
-            request.setStatus(RequestStatus.PARTIALLY_FULFILLED);
-        }
-        if (before != request.getStatus()) {
-            audit.record(AuditAction.STATUS_CHANGED, "RESOURCE_REQUEST", request.getId(),
-                    request.getDestination().getOrganization().getId(), "request.fulfillment_changed",
-                    Map.of("before", before, "after", request.getStatus()));
-        }
+        RequestProgress.update(request, audit);
     }
 
     private void reservation(Allocation allocation) {
