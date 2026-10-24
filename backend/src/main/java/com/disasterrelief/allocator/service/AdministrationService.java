@@ -122,7 +122,7 @@ public class AdministrationService {
 
     private void updateMembership(UserProfile user, String name, String email, UUID organizationId,
             Set<Role> roles, boolean active) {
-        if (roles == null || roles.isEmpty() || roles.contains(null)) {
+        if (roles == null || roles.isEmpty() || roles.stream().anyMatch(Objects::isNull)) {
             throw new BusinessRuleViolationException("At least one valid role is required");
         }
         boolean administrator = roles.contains(Role.SYSTEM_ADMIN);
