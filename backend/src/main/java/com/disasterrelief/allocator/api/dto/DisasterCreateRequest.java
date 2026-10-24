@@ -5,7 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.UUID;
 
 public record DisasterCreateRequest(@NotBlank @Size(max = 160) String name,
         @NotNull DisasterType type, @Size(max = 2000) String description,
-        @NotNull Instant startedAt) { }
+        @NotNull Instant startedAt, UUID organizationId) { }
