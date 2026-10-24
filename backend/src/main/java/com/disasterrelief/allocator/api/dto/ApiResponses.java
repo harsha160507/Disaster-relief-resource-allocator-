@@ -14,7 +14,7 @@ import java.util.UUID;
 public final class ApiResponses {
     private ApiResponses() { }
     public record DisasterResponse(UUID id, String name, DisasterType type, DisasterStatus status,
-            String description, Instant startedAt, Instant endedAt, Set<UUID> affectedLocationIds) { }
+            String description, Instant startedAt, Instant endedAt, Set<UUID> affectedLocationIds, UUID organizationId) { }
     public record LocationResponse(UUID id, String name, String address, String region,
             BigDecimal latitude, BigDecimal longitude, UUID organizationId) { }
     public record ResourceTypeResponse(UUID id, String name, String unitOfMeasure, boolean perishable,
