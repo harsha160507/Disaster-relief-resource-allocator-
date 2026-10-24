@@ -59,7 +59,7 @@ For audit_events, grant SELECT and INSERT only, without UPDATE, DELETE, TRUNCATE
 or DDL/trigger ownership. Arrange per-table grants for existing and future tables
 through the DBA; see [audit protections](audit-history.md). No sequence privileges are needed for application-generated UUIDs.
 
-After startup, `flyway_schema_history` should contain successful versions 1–6.
+After startup, `flyway_schema_history` should contain successful versions 1–7.
 Restarting the backend validates checksums and applies only pending versions.
 
 ## Migration inventory
@@ -72,16 +72,17 @@ Restarting the backend validates checksums and applies only pending versions.
 | V4 | Quantity/coordinate checks and workflow lookup indexes |
 | V5 | Issuer-bound identities, administration versions/lock and disaster ownership |
 | V6 | Audit attribution snapshots, lookup indexes and append-only protections |
+| V7 | Shipment/allocation/request versions, delivered quantities and workflow checks |
 
 The tables reflect the current JPA model, including UUIDs, timestamp precision,
 numeric quantities, enum values, foreign keys and optimistic-lock versions.
-Audit capture is implemented in Phase 3. Shipment application workflows remain
-a later phase.
+Audit capture is implemented in Phase 3 and shipment application workflows in
+Phase 4. See [shipment accounting and migration details](shipment-workflows.md).
 
 ## Safe upgrades and existing data
 
 - Back up production data and verify restoration before deployment.
-- Applied migrations are immutable. Add `V7__description.sql` and later versions
+- Applied migrations are immutable. Add `V8__description.sql` and later versions
   for future changes; do not edit a version that has already been applied.
 - Flyway checksum validation runs on startup. Incorrect/missing migration names
   and missing migration locations fail startup.
@@ -112,7 +113,7 @@ For migration verification, create a dedicated empty test database such as
 ./mvnw -Ppostgres-it verify
 ```
 
-Use `mvnw.cmd` on Windows. The profile runs the normal suite plus nine PostgreSQL
+Use `mvnw.cmd` on Windows. The profile runs the normal suite plus fourteen PostgreSQL
 integration tests. Missing database credentials fail the profile; these checks
 are never silently skipped. Use a dedicated test account with CREATE permission
 on the test database. Each test creates its own random `phase1_it_...` schema and
@@ -122,4 +123,5 @@ The checks cover fresh migration + Hibernate validation, an allocation workflow,
 HTTP server startup, restart/data preservation, repeat migration, integrity
 constraints, legacy-schema rejection, checksum/schema-drift rejection,
 legacy identity/audit preservation, concurrent administrator safeguards,
-append-only audit enforcement and atomic business/audit rollback. A passing H2 run alone does not validate PostgreSQL migrations.
+append-only audit enforcement, atomic business/audit rollback, shipment
+concurrency/stock conservation and V6-to-V7 delivery progress preservation. A passing H2 run alone does not validate PostgreSQL migrations.
