@@ -44,10 +44,17 @@ Production keeps `spring.jpa.hibernate.ddl-auto=validate`, checksum validation,
 automatic-baseline protection and Flyway clean protection enabled.
 Applied migrations must remain unchanged; add a new version for future changes.
 
+## Users and organizations
+
+Phase 2 adds administrator-controlled organization/user provisioning,
+issuer-and-subject identity bindings, database-managed roles, current-profile
+endpoints, deactivation, and organization access checks.
+
+See [Identity and administration setup](docs/identity-and-administration.md) for
+issuer/audience configuration, first-administrator bootstrap and API examples.
+
 ## Current scope
 
-This repository currently contains the backend. Frontend, user/organization
-provisioning APIs, shipment operations, audit capture and CI are planned later
-phases. Normal authenticated API access also requires an external JWT issuer
-configured with `security.oauth2.issuer-uri`; without one, protected endpoints
+This repository currently contains the backend. Frontend, shipment operations, audit capture and CI are planned later phases. Normal authenticated API access also requires an external JWT issuer
+configured with `security.oauth2.issuer-uri` and `security.oauth2.audience`, plus a provisioned local profile; without these, protected endpoints
 remain inaccessible. Database setup alone does not create users or login sessions.
