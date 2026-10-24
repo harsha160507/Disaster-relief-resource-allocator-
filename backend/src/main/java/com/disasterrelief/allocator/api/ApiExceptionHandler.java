@@ -2,6 +2,8 @@ package com.disasterrelief.allocator.api;
 
 import com.disasterrelief.allocator.exception.BusinessRuleViolationException;
 import com.disasterrelief.allocator.exception.ResourceNotFoundException;
+import com.disasterrelief.allocator.exception.ResourceConflictException;
+import org.springframework.security.access.AccessDeniedException;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -27,6 +29,11 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ApiErrorResponse> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
+        return error(HttpStatus.FORBIDDEN, "AUTHORIZATION_DENIED", "You are not authorized to access this resource", request, Map.of());
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     ResponseEntity<ApiErrorResponse> notFound(ResourceNotFoundException exception, HttpServletRequest request) {
@@ -70,7 +77,7 @@ public class ApiExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", "Request body is missing or malformed", request, Map.of());
     }
 
-    @ExceptionHandler({DataIntegrityViolationException.class, ObjectOptimisticLockingFailureException.class,
+    @ExceptionHandler({ResourceConflictException.class, DataIntegrityViolationException.class, ObjectOptimisticLockingFailureException.class,
             OptimisticLockException.class})
     ResponseEntity<ApiErrorResponse> conflict(Exception exception, HttpServletRequest request) {
         log.warn("Persistence conflict while processing {} {}", request.getMethod(), request.getRequestURI(), exception);
