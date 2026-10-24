@@ -7,6 +7,8 @@ import com.disasterrelief.allocator.exception.ResourceNotFoundException;
 import com.disasterrelief.allocator.repository.LocationRepository;
 import com.disasterrelief.allocator.repository.OrganizationRepository;
 import java.math.BigDecimal;
+import java.util.Map;
+import com.disasterrelief.allocator.domain.AuditAction;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
     private final OrganizationRepository organizationRepository;
+    private final AuditWriter audit;
 
     @Transactional
     public Location create(String name, String address, UUID organizationId,
@@ -35,7 +38,10 @@ public class LocationService {
         location.setOrganization(organization);
         location.setLatitude(latitude);
         location.setLongitude(longitude);
-        return locationRepository.save(location);
+        locationRepository.save(location);
+        audit.record(AuditAction.CREATED, "LOCATION", location.getId(), organizationId,
+                "location.created", Map.of("organizationId", organizationId));
+        return location;
     }
 
     @Transactional(readOnly = true)
