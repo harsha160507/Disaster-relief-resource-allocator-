@@ -275,6 +275,25 @@ class PhaseFourShipmentTests {
         assertEquals(RequestStatus.DELIVERED, requests.find(scenario.requestId()).getStatus());
     }
 
+    @Test void inconsistentLegacyAllocationLinksCannotEnterAManifest() {
+        var scenario = scenario("10");
+        var allocation = allocations.allocate(scenario.requestId()).getFirst();
+        var otherResource = resources.createResourceType("Blankets", "units", false);
+        var otherStock = resources.receive(scenario.destination().getId(), otherResource.getId(), amount("20"));
+        allocation.setInventory(otherStock);
+        allocationRepository.flush();
+        long before = events.count();
+        assertThrows(com.disasterrelief.allocator.exception.BusinessRuleViolationException.class,
+                () -> create(scenario, allocation));
+        assertEquals(0, shipmentRepository.count()); assertEquals(before, events.count());
+        allocation.setInventory(scenario.inventory());
+        requests.find(scenario.requestId()).getItems().getFirst().setAllocatedQuantity(amount("1"));
+        allocationRepository.flush();
+        assertThrows(com.disasterrelief.allocator.exception.BusinessRuleViolationException.class,
+                () -> create(scenario, allocation));
+        assertEquals(0, shipmentRepository.count()); assertEquals(before, events.count());
+    }
+
     private record Scenario(Organization organization, Location destination, Inventory inventory,
             UUID requestId, UUID itemId, UUID resourceId, UUID disasterId, UUID requesterId) {}
     private Scenario scenario(String quantity) {
