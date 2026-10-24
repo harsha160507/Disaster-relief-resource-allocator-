@@ -13,6 +13,8 @@ import com.disasterrelief.allocator.repository.InventoryRepository;
 import com.disasterrelief.allocator.repository.ResourceRequestItemRepository;
 import com.disasterrelief.allocator.repository.ResourceRequestRepository;
 import java.math.BigDecimal;
+import java.util.Map;
+import com.disasterrelief.allocator.domain.AuditAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +30,7 @@ public class AllocationService {
     private final ResourceRequestRepository requestRepository;
     private final ResourceRequestItemRepository requestItemRepository;
     private final InventoryRepository inventoryRepository;
+    private final AuditWriter audit;
 
     @Transactional
     public Allocation reserve(UUID requestItemId, UUID inventoryId, BigDecimal quantity) {
@@ -65,6 +68,7 @@ public class AllocationService {
         inventoryRepository.save(inventory);
         requestItemRepository.save(item);
         Allocation saved = allocationRepository.save(allocation);
+        reservation(saved);
         updateRequestStatus(request);
         return saved;
     }
@@ -106,7 +110,9 @@ public class AllocationService {
                 allocation.setStatus(AllocationStatus.RESERVED);
                 inventoryRepository.save(inventory);
                 requestItemRepository.save(item);
-                allocations.add(allocationRepository.save(allocation));
+                Allocation saved = allocationRepository.save(allocation);
+                reservation(saved);
+                allocations.add(saved);
                 if (remainingNeed.signum() == 0) {
                     break;
                 }
@@ -124,6 +130,7 @@ public class AllocationService {
     }
 
     private void updateRequestStatus(ResourceRequest request) {
+        RequestStatus before = request.getStatus();
         boolean hasUnfulfilledItem = request.getItems().stream()
                 .anyMatch(item -> item.getAllocatedQuantity().compareTo(item.getRequestedQuantity()) < 0);
         boolean hasAllocation = request.getItems().stream()
@@ -133,6 +140,25 @@ public class AllocationService {
         } else if (hasAllocation) {
             request.setStatus(RequestStatus.PARTIALLY_FULFILLED);
         }
+        if (before != request.getStatus()) {
+            audit.record(AuditAction.STATUS_CHANGED, "RESOURCE_REQUEST", request.getId(),
+                    request.getDestination().getOrganization().getId(), "request.fulfillment_changed",
+                    Map.of("before", before, "after", request.getStatus()));
+        }
+    }
+
+    private void reservation(Allocation allocation) {
+        var item = allocation.getRequestItem();
+        var inventory = allocation.getInventory();
+        audit.record(AuditAction.CREATED, "ALLOCATION", allocation.getId(),
+                item.getRequest().getDestination().getOrganization().getId(),
+                "allocation.reserved", Map.of("requestId", item.getRequest().getId(), "requestItemId", item.getId(),
+                        "inventoryId", inventory.getId(), "quantity", allocation.getQuantity(),
+                        "status", allocation.getStatus(),
+                        "beforeReservedQuantity", inventory.getReservedQuantity().subtract(allocation.getQuantity()),
+                        "afterReservedQuantity", inventory.getReservedQuantity(),
+                        "beforeAllocatedQuantity", item.getAllocatedQuantity().subtract(allocation.getQuantity()),
+                        "afterAllocatedQuantity", item.getAllocatedQuantity()));
     }
 
     private void requirePositive(BigDecimal quantity) {
