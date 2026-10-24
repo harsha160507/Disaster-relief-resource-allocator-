@@ -14,6 +14,8 @@ import com.disasterrelief.allocator.exception.ResourceNotFoundException;
 import com.disasterrelief.allocator.repository.ResourceRequestRepository;
 import com.disasterrelief.allocator.repository.UserProfileRepository;
 import java.math.BigDecimal;
+import java.util.Map;
+import com.disasterrelief.allocator.domain.AuditAction;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class RequestService {
     private final DisasterService disasterService;
     private final LocationService locationService;
     private final ResourceService resourceService;
+    private final AuditWriter audit;
 
     @Transactional
     public ResourceRequest create(String reference, UUID disasterId, UUID requesterId,
@@ -56,7 +59,11 @@ public class RequestService {
         request.setDestination(destination);
         request.setPriority(priority);
         request.setNotes(notes);
-        return requestRepository.save(request);
+        requestRepository.save(request);
+        audit.record(AuditAction.CREATED, "RESOURCE_REQUEST", request.getId(), owner(request),
+                "request.created", Map.of("status", request.getStatus(), "priority", priority,
+                        "disasterId", disasterId, "destinationId", destinationId));
+        return request;
     }
 
     @Transactional
@@ -75,6 +82,8 @@ public class RequestService {
         item.setResourceType(resourceType);
         item.setRequestedQuantity(quantity);
         request.getItems().add(item);
+        audit.record(AuditAction.UPDATED, "RESOURCE_REQUEST", requestId, owner(request),
+                "request.item_added", Map.of("resourceTypeId", resourceTypeId, "requestedQuantity", quantity));
         return request;
     }
 
@@ -86,6 +95,7 @@ public class RequestService {
             throw new BusinessRuleViolationException("A request must contain at least one resource item");
         }
         request.setStatus(RequestStatus.SUBMITTED);
+        status(request, RequestStatus.DRAFT);
         return request;
     }
 
@@ -94,6 +104,7 @@ public class RequestService {
         ResourceRequest request = find(requestId);
         requireStatus(request, RequestStatus.SUBMITTED, "Only submitted requests can be approved");
         request.setStatus(RequestStatus.APPROVED);
+        status(request, RequestStatus.SUBMITTED);
         return request;
     }
 
@@ -104,6 +115,7 @@ public class RequestService {
             throw new BusinessRuleViolationException("Only submitted requests can be rejected");
         }
         request.setStatus(RequestStatus.REJECTED);
+        status(request, RequestStatus.SUBMITTED);
         return request;
     }
 
@@ -111,6 +123,13 @@ public class RequestService {
     public ResourceRequest find(UUID requestId) {
         return requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resource request not found: " + requestId));
+    }
+
+    private UUID owner(ResourceRequest request) { return request.getDestination().getOrganization().getId(); }
+
+    private void status(ResourceRequest request, RequestStatus before) {
+        audit.record(AuditAction.STATUS_CHANGED, "RESOURCE_REQUEST", request.getId(), owner(request),
+                "request.status_changed", Map.of("before", before, "after", request.getStatus()));
     }
 
     private void requireStatus(ResourceRequest request, RequestStatus expected, String message) {
