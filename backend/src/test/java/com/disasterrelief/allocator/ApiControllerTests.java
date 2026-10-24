@@ -38,6 +38,9 @@ class ApiControllerTests {
     @MockitoBean
     private com.disasterrelief.allocator.security.OrganizationAccess organizationAccess;
 
+    @MockitoBean
+    private com.disasterrelief.allocator.security.IdentityService identityService;
+
     @Test
     void coordinatorCanCreateDisaster() throws Exception {
         Disaster disaster = org.mockito.Mockito.mock(Disaster.class);
