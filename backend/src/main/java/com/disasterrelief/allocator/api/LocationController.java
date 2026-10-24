@@ -15,15 +15,17 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class LocationController {
     private final LocationService service;
+    private final com.disasterrelief.allocator.security.OrganizationAccess access;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'PARTNER_MANAGER')")
     public LocationResponse create(@Valid @RequestBody LocationCreateRequest request) {
+        access.organization(request.organizationId());
         return ApiMapper.location(service.create(request.name(), request.address(), request.organizationId(),
                 request.latitude(), request.longitude()));
     }
 
     @GetMapping("/{id}")
-    public LocationResponse find(@PathVariable UUID id) { return ApiMapper.location(service.find(id)); }
+    public LocationResponse find(@PathVariable UUID id) { access.location(id); return ApiMapper.location(service.find(id)); }
 }
