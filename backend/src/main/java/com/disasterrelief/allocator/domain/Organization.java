@@ -3,6 +3,7 @@ package com.disasterrelief.allocator.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -20,6 +21,10 @@ public class Organization extends BaseEntity {
     @Size(max = 160)
     @Column(nullable = false, length = 160)
     private String name;
+
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
 
     @Size(max = 80)
     @Column(length = 80)
