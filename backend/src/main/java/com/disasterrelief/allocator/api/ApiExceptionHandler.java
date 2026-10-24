@@ -91,6 +91,12 @@ public class ApiExceptionHandler {
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "DATABASE_ERROR", "The request could not be completed", request, Map.of());
     }
 
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ApiErrorResponse> unsupportedMethod(Exception exception, HttpServletRequest request) {
+        return error(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED",
+                "This endpoint does not support that method", request, Map.of());
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiErrorResponse> unexpected(Exception exception, HttpServletRequest request) {
         log.error("Unhandled application error while processing {} {}", request.getMethod(), request.getRequestURI(), exception);
