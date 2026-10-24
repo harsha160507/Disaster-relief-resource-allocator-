@@ -58,7 +58,7 @@ class PostgreSqlMigrationIT {
         UUID organizationId;
         try (var context = startApplication()) {
             Flyway flyway = context.getBean(Flyway.class);
-            assertEquals(6, flyway.info().applied().length);
+            assertEquals(7, flyway.info().applied().length);
             assertEquals(0, flyway.info().pending().length);
             assertEquals(15, scalar("SELECT count(*) FROM information_schema.tables WHERE table_schema = '" + schema + "'"));
             var organization = new Organization();
@@ -101,7 +101,7 @@ class PostgreSqlMigrationIT {
         }
         try (var restarted = startApplication()) {
             assertTrue(restarted.getBean(OrganizationRepository.class).findById(organizationId).isPresent());
-            assertEquals(6, restarted.getBean(Flyway.class).info().applied().length);
+            assertEquals(7, restarted.getBean(Flyway.class).info().applied().length);
             assertEquals(0, restarted.getBean(Flyway.class).migrate().migrationsExecuted);
             assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".allocations"));
         }
@@ -177,7 +177,7 @@ class PostgreSqlMigrationIT {
         flyway().migrate();
         assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".user_profiles WHERE id = '"
                 + id + "' AND active = false AND external_issuer IS NULL"));
-        assertEquals(6, flyway().info().applied().length);
+        assertEquals(7, flyway().info().applied().length);
     }
 
     @Test
@@ -268,6 +268,195 @@ class PostgreSqlMigrationIT {
         try (var restarted = startApplication()) {
             assertEquals(1, restarted.getBean(com.disasterrelief.allocator.repository.AuditEventRepository.class).count());
         }
+    }
+
+    @Test
+    void concurrentManifestDispatchAndDeliveryApplyEachTransitionOnceAndSurviveRestart() throws Exception {
+        PgShipmentScenario scenario;
+        UUID shipmentId;
+        try (var context = startApplication()) {
+            scenario = shipmentScenario(context, "20");
+            var allocation = context.getBean(AllocationService.class).allocate(scenario.request()).getFirst();
+            var service = context.getBean(ShipmentService.class);
+            var wins = race(() -> service.create(manifest(scenario, allocation.getId())),
+                    () -> service.create(manifest(scenario, allocation.getId())));
+            assertEquals(1, wins);
+            shipmentId = context.getBean(com.disasterrelief.allocator.repository.ShipmentRepository.class).findAll().getFirst().getId();
+            UUID id = shipmentId;
+            assertEquals(1, race(() -> service.dispatch(id), () -> service.dispatch(id)));
+            assertPgStock(scenario, "30", "0");
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events WHERE operation = 'inventory.dispatched'"));
+            assertEquals(1, race(() -> service.deliver(id), () -> service.deliver(id)));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_requests WHERE id = '"
+                    + scenario.request() + "' AND status = 'DELIVERED'"));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_request_items WHERE id = '"
+                    + scenario.item() + "' AND delivered_quantity = 20 AND allocated_quantity = 20"));
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events WHERE operation = 'request_item.delivered'"));
+        }
+        try (var restarted = startApplication()) {
+            assertEquals(ShipmentStatus.DELIVERED, restarted.getBean(ShipmentService.class).get(shipmentId).status());
+            assertPgStock(scenario, "30", "0");
+        }
+    }
+
+    @Test
+    void concurrentDispatchAndCancellationHaveOneWinnerWithoutDoubleCounting() throws Exception {
+        try (var context = startApplication()) {
+            var scenario = shipmentScenario(context, "20");
+            var allocation = context.getBean(AllocationService.class).allocate(scenario.request()).getFirst();
+            var service = context.getBean(ShipmentService.class);
+            UUID id = service.create(manifest(scenario, allocation.getId())).id();
+            assertEquals(1, race(() -> service.dispatch(id), () -> service.cancel(id)));
+            var state = service.get(id).status();
+            if (state == ShipmentStatus.DISPATCHED) {
+                assertPgStock(scenario, "30", "0");
+                assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_request_items WHERE id = '"
+                        + scenario.item() + "' AND allocated_quantity = 20"));
+            } else {
+                assertEquals(ShipmentStatus.CANCELLED, state);
+                assertPgStock(scenario, "50", "0");
+                assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_request_items WHERE id = '"
+                        + scenario.item() + "' AND allocated_quantity = 0 AND delivered_quantity = 0"));
+            }
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".audit_events WHERE operation IN "
+                    + "('inventory.dispatched', 'inventory.reservation_released')"));
+        }
+    }
+
+    @Test
+    void allocatingWhileAnotherShipmentDispatchesConservesAvailableStock() throws Exception {
+        try (var context = startApplication()) {
+            var scenario = shipmentScenario(context, "20");
+            var allocationService = context.getBean(AllocationService.class);
+            var allocation = allocationService.allocate(scenario.request()).getFirst();
+            var shipmentService = context.getBean(ShipmentService.class);
+            UUID shipment = shipmentService.create(manifest(scenario, allocation.getId())).id();
+            var requestService = context.getBean(RequestService.class);
+            var request = requestService.create("CONCURRENT-OTHER", scenario.disaster(), scenario.requester(),
+                    scenario.destination(), RequestPriority.HIGH, null);
+            requestService.addItem(request.getId(), scenario.resource(), new BigDecimal("40"));
+            requestService.submit(request.getId()); requestService.approve(request.getId());
+            assertEquals(2, race(() -> shipmentService.dispatch(shipment), () -> allocationService.allocate(request.getId())));
+            assertPgStock(scenario, "30", "30");
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_request_items WHERE request_id = '"
+                    + request.getId() + "' AND allocated_quantity = 30 AND delivered_quantity = 0"));
+            assertEquals(RequestStatus.PARTIALLY_FULFILLED, requestService.find(request.getId()).getStatus());
+        }
+    }
+
+    @Test
+    void failedShipmentAuditAppendRollsBackStockAllocationAndShipmentTogether() throws Exception {
+        try (var context = startApplication()) {
+            var scenario = shipmentScenario(context, "20");
+            var allocation = context.getBean(AllocationService.class).allocate(scenario.request()).getFirst();
+            var service = context.getBean(ShipmentService.class);
+            UUID id = service.create(manifest(scenario, allocation.getId())).id();
+            long auditCount = scalar("SELECT count(*) FROM " + schema + ".audit_events");
+            execute("ALTER TABLE " + schema + ".audit_events ADD CONSTRAINT test_reject_shipment_append "
+                    + "CHECK (operation <> 'shipment.status_changed') NOT VALID");
+            assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> service.dispatch(id));
+            assertPgStock(scenario, "50", "20");
+            assertEquals(ShipmentStatus.CREATED, service.get(id).status());
+            assertEquals(AllocationStatus.CONFIRMED, service.get(id).allocations().getFirst().status());
+            assertEquals(auditCount, scalar("SELECT count(*) FROM " + schema + ".audit_events"));
+            execute("ALTER TABLE " + schema + ".audit_events DROP CONSTRAINT test_reject_shipment_append");
+            service.dispatch(id); service.deliver(id);
+            assertPgStock(scenario, "30", "0");
+        }
+    }
+
+    @Test
+    void versionSixDeliveredRecordsUpgradeWithoutDeductingStockAgain() throws Exception {
+        Flyway.configure().dataSource(url, user, password).schemas(schema).defaultSchema(schema)
+                .locations("classpath:db/migration").target("6").load().migrate();
+        UUID org = UUID.randomUUID(), location = UUID.randomUUID(), userId = UUID.randomUUID(),
+                resource = UUID.randomUUID(), disaster = UUID.randomUUID(), request = UUID.randomUUID(),
+                item = UUID.randomUUID(), inventory = UUID.randomUUID(), shipment = UUID.randomUUID();
+        execute("INSERT INTO " + schema + ".organizations (id,created_at,updated_at,name,active) VALUES ('"
+                + org + "',now(),now(),'Legacy org',true)");
+        execute("INSERT INTO " + schema + ".locations (id,created_at,updated_at,name,address,organization_id) VALUES ('"
+                + location + "',now(),now(),'Legacy shelter','Address','" + org + "')");
+        execute("INSERT INTO " + schema + ".user_profiles (id,created_at,updated_at,external_subject,display_name,active) VALUES ('"
+                + userId + "',now(),now(),'legacy','Legacy user',false)");
+        execute("INSERT INTO " + schema + ".resource_types (id,created_at,updated_at,name,unit_of_measure,perishable,active) VALUES ('"
+                + resource + "',now(),now(),'Water','litres',false,true)");
+        execute("INSERT INTO " + schema + ".disasters (id,created_at,updated_at,name,type,status,started_at) VALUES ('"
+                + disaster + "',now(),now(),'Flood','FLOOD','ACTIVE',now())");
+        execute("INSERT INTO " + schema + ".resource_requests "
+                + "(id,created_at,updated_at,reference,disaster_id,requested_by_id,destination_location_id,status,priority) VALUES ('"
+                + request + "',now(),now(),'LEGACY-DELIVERED','" + disaster + "','" + userId + "','" + location + "','FULFILLED','HIGH')");
+        execute("INSERT INTO " + schema + ".resource_request_items "
+                + "(id,created_at,updated_at,request_id,resource_type_id,requested_quantity,allocated_quantity,version) VALUES ('"
+                + item + "',now(),now(),'" + request + "','" + resource + "',5,5,0)");
+        execute("INSERT INTO " + schema + ".inventory "
+                + "(id,created_at,updated_at,location_id,resource_type_id,quantity,reserved_quantity,version) VALUES ('"
+                + inventory + "',now(),now(),'" + location + "','" + resource + "',50,0,0)");
+        execute("INSERT INTO " + schema + ".shipments "
+                + "(id,created_at,updated_at,destination_location_id,status,tracking_reference,dispatched_at,delivered_at) VALUES ('"
+                + shipment + "',now(),now(),'" + location + "','DELIVERED','LEGACY-TRACK',now(),now())");
+        execute("INSERT INTO " + schema + ".allocations "
+                + "(id,created_at,updated_at,request_item_id,inventory_id,quantity,status,shipment_id) VALUES ('"
+                + UUID.randomUUID() + "',now(),now(),'" + item + "','" + inventory + "',5,'DELIVERED','" + shipment + "')");
+        flyway().migrate();
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_request_items WHERE id = '" + item
+                + "' AND delivered_quantity = 5 AND allocated_quantity = 5"));
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".resource_requests WHERE id = '" + request + "' AND status = 'DELIVERED'"));
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".inventory WHERE id = '" + inventory + "' AND quantity = 50"));
+        assertEquals(7, flyway().info().applied().length);
+        assertSqlState("23514", "UPDATE " + schema + ".resource_request_items SET delivered_quantity = 6 WHERE id = '" + item + "'");
+        assertSqlState("23514", "UPDATE " + schema + ".shipments SET delivered_at = dispatched_at - interval '1 second' WHERE id = '" + shipment + "'");
+    }
+
+    private record PgShipmentScenario(UUID request, UUID item, UUID inventory, UUID destination,
+            UUID resource, UUID disaster, UUID requester) {}
+
+    private PgShipmentScenario shipmentScenario(ConfigurableApplicationContext context, String quantity) {
+        var organization = new Organization(); organization.setName("Shipment integration org");
+        organization = context.getBean(OrganizationRepository.class).saveAndFlush(organization);
+        var requester = new UserProfile(); requester.setExternalSubject("shipment-it");
+        requester.setDisplayName("Shipment integration requester"); requester.setOrganization(organization);
+        requester = context.getBean(UserProfileRepository.class).saveAndFlush(requester);
+        var locations = context.getBean(LocationService.class);
+        var disasters = context.getBean(DisasterService.class);
+        var resources = context.getBean(ResourceService.class);
+        var requests = context.getBean(RequestService.class);
+        var location = locations.create("Shelter", "Address", organization.getId(), null, null);
+        var disaster = disasters.createForOrganization("Flood", DisasterType.FLOOD, null, Instant.now(), organization.getId());
+        disasters.activate(disaster.getId()); disasters.addAffectedLocation(disaster.getId(), location.getId());
+        var resource = resources.createResourceType("Water", "litres", false);
+        var inventory = resources.receive(location.getId(), resource.getId(), new BigDecimal("50"));
+        var request = requests.create("SHIPMENT-PG", disaster.getId(), requester.getId(), location.getId(), RequestPriority.HIGH, null);
+        requests.addItem(request.getId(), resource.getId(), new BigDecimal(quantity));
+        requests.submit(request.getId()); requests.approve(request.getId());
+        UUID itemId = context.getBean(com.disasterrelief.allocator.repository.ResourceRequestItemRepository.class)
+                .findByRequestId(request.getId()).getFirst().getId();
+        return new PgShipmentScenario(request.getId(), itemId, inventory.getId(), location.getId(),
+                resource.getId(), disaster.getId(), requester.getId());
+    }
+
+    private com.disasterrelief.allocator.api.dto.ShipmentDtos.Create manifest(PgShipmentScenario scenario, UUID allocation) {
+        return new com.disasterrelief.allocator.api.dto.ShipmentDtos.Create(scenario.destination(), "PG-" + UUID.randomUUID(), List.of(allocation));
+    }
+
+    private int race(Runnable first, Runnable second) throws Exception {
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var a = pool.submit(() -> raceOperation(start, first));
+            var b = pool.submit(() -> raceOperation(start, second));
+            start.countDown();
+            return a.get(30, java.util.concurrent.TimeUnit.SECONDS) + b.get(30, java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
+    private int raceOperation(java.util.concurrent.CountDownLatch start, Runnable operation) throws Exception {
+        start.await();
+        try { operation.run(); return 1; }
+        catch (com.disasterrelief.allocator.exception.BusinessRuleViolationException expected) { return 0; }
+    }
+
+    private void assertPgStock(PgShipmentScenario scenario, String quantity, String reserved) throws Exception {
+        assertEquals(1, scalar("SELECT count(*) FROM " + schema + ".inventory WHERE id = '" + scenario.inventory()
+                + "' AND quantity = " + quantity + " AND reserved_quantity = " + reserved));
     }
 
     private boolean disableAdministrator(com.disasterrelief.allocator.service.AdministrationService service,
