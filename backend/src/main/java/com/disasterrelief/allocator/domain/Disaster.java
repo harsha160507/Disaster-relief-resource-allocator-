@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
@@ -30,6 +31,11 @@ public class Disaster extends BaseEntity {
     @Size(max = 160)
     @Column(nullable = false, length = 160)
     private String name;
+
+    // Null only for pre-provisioning records, visible to system administrators.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
 
     @NotNull
     @Enumerated(EnumType.STRING)
