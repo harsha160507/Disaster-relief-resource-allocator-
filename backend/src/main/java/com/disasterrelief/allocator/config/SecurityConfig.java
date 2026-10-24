@@ -38,7 +38,7 @@ public class SecurityConfig {
         }
         OAuth2TokenValidator<Jwt> claims = token ->
                 token.getExpiresAt() != null && token.getSubject() != null && !token.getSubject().isBlank()
-                        && token.getAudience().contains(audience)
+                        && token.getAudience() != null && token.getAudience().contains(audience)
                 ? OAuth2TokenValidatorResult.success()
                 : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Required token claims are missing", null));
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
