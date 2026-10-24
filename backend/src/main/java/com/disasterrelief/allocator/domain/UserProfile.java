@@ -12,6 +12,8 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -22,7 +24,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "user_profiles")
+@Table(name = "user_profiles", uniqueConstraints = @UniqueConstraint(name = "uk_user_identity", columnNames = {"external_issuer", "external_subject"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,8 +32,16 @@ public class UserProfile extends BaseEntity {
 
     @NotBlank
     @Size(max = 255)
-    @Column(name = "external_subject", nullable = false, unique = true, length = 255)
+    @Column(name = "external_subject", nullable = false, length = 255)
     private String externalSubject;
+
+    @Size(max = 512)
+    @Column(name = "external_issuer", length = 512)
+    private String externalIssuer;
+
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
 
     @NotBlank
     @Size(max = 120)
