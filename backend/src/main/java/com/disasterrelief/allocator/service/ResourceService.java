@@ -86,6 +86,13 @@ public class ResourceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Resource type not found: " + resourceTypeId));
     }
 
+    @Transactional(readOnly = true)
+    public List<Inventory> availableForOrganization(UUID resourceTypeId, UUID organizationId) {
+        findResourceType(resourceTypeId);
+        return organizationId == null ? inventoryRepository.findAvailableByResourceTypeId(resourceTypeId)
+                : inventoryRepository.findAvailableForOrganization(resourceTypeId, organizationId);
+    }
+
     private void requirePositive(BigDecimal value, String message) {
         if (value == null || value.signum() <= 0) {
             throw new BusinessRuleViolationException(message);
