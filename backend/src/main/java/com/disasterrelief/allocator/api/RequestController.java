@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class RequestController {
     private final RequestService service;
+    private final com.disasterrelief.allocator.security.OrganizationAccess access;
 
     @GetMapping
     public ResponseEntity<Void> collectionNotAvailable() {
@@ -26,28 +27,30 @@ public class RequestController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'FIELD_AGENT', 'PARTNER_MANAGER')")
     public RequestResponse create(@Valid @RequestBody RequestCreateRequest request) {
+        access.createRequest(request.requesterId(), request.destinationId(), request.disasterId());
         return ApiMapper.request(service.create(request.reference(), request.disasterId(), request.requesterId(),
                 request.destinationId(), request.priority(), request.notes()));
     }
 
     @GetMapping("/{id}")
-    public RequestResponse find(@PathVariable UUID id) { return ApiMapper.request(service.find(id)); }
+    public RequestResponse find(@PathVariable UUID id) { access.request(id); return ApiMapper.request(service.find(id)); }
 
     @PostMapping("/{id}/items")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'FIELD_AGENT', 'PARTNER_MANAGER')")
     public RequestResponse addItem(@PathVariable UUID id, @Valid @RequestBody RequestItemCreateRequest request) {
+        access.editRequest(id);
         return ApiMapper.request(service.addItem(id, request.resourceTypeId(), request.quantity()));
     }
 
     @PostMapping("/{id}/submission")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'FIELD_AGENT', 'PARTNER_MANAGER')")
-    public RequestResponse submit(@PathVariable UUID id) { return ApiMapper.request(service.submit(id)); }
+    public RequestResponse submit(@PathVariable UUID id) { access.editRequest(id); return ApiMapper.request(service.submit(id)); }
 
     @PostMapping("/{id}/approval")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'DISASTER_COORDINATOR')")
-    public RequestResponse approve(@PathVariable UUID id) { return ApiMapper.request(service.approve(id)); }
+    public RequestResponse approve(@PathVariable UUID id) { access.request(id); return ApiMapper.request(service.approve(id)); }
 
     @PostMapping("/{id}/rejection")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'DISASTER_COORDINATOR')")
-    public RequestResponse reject(@PathVariable UUID id) { return ApiMapper.request(service.reject(id)); }
+    public RequestResponse reject(@PathVariable UUID id) { access.request(id); return ApiMapper.request(service.reject(id)); }
 }
