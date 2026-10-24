@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ResourceController {
     private final ResourceService service;
+    private final com.disasterrelief.allocator.security.OrganizationAccess access;
 
     @PostMapping("/resource-types")
     @ResponseStatus(HttpStatus.CREATED)
@@ -31,20 +32,22 @@ public class ResourceController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'INVENTORY_MANAGER')")
     public InventoryResponse receive(@Valid @RequestBody InventoryReceiveRequest request) {
+        access.location(request.locationId());
         return ApiMapper.inventory(service.receive(request.locationId(), request.resourceTypeId(), request.quantity()));
     }
 
     @PatchMapping("/inventory/{id}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'INVENTORY_MANAGER')")
     public InventoryResponse adjust(@PathVariable UUID id, @Valid @RequestBody InventoryAdjustRequest request) {
+        access.inventory(id);
         return ApiMapper.inventory(service.adjustQuantity(id, request.change()));
     }
 
     @GetMapping("/inventory/resource-types/{resourceTypeId}/available")
     public List<InventoryResponse> available(@PathVariable UUID resourceTypeId) {
-        return service.available(resourceTypeId).stream().map(ApiMapper::inventory).toList();
+        return service.available(resourceTypeId).stream().filter(access::canReadInventory).map(ApiMapper::inventory).toList();
     }
 
     @GetMapping("/inventory/{id}")
-    public InventoryResponse findInventory(@PathVariable UUID id) { return ApiMapper.inventory(service.findInventory(id)); }
+    public InventoryResponse findInventory(@PathVariable UUID id) { access.inventory(id); return ApiMapper.inventory(service.findInventory(id)); }
 }
