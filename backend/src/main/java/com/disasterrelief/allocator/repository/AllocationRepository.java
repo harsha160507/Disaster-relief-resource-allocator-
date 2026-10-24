@@ -9,6 +9,16 @@ import org.springframework.data.jpa.repository.EntityGraph;
 
 public interface AllocationRepository extends JpaRepository<Allocation, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select a from Allocation a where a.id = :id")
+    java.util.Optional<Allocation> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Query("select a.requestItem.request.id from Allocation a where a.id = :id")
+    java.util.Optional<UUID> requestIdForAllocation(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Query("select a.id from Allocation a where a.shipment.id = :id order by a.id")
+    List<UUID> idsForShipment(@org.springframework.data.repository.query.Param("id") UUID id);
+
     @EntityGraph(attributePaths = {"requestItem", "requestItem.resourceType", "inventory", "shipment"})
     List<Allocation> findByRequestItemId(UUID requestItemId);
 
