@@ -35,7 +35,7 @@ import org.springframework.context.annotation.Import;
 
 @DataJpaTest
 @Import({DisasterService.class, LocationService.class, ResourceService.class,
-        RequestService.class, AllocationService.class})
+        RequestService.class, AllocationService.class, AuditWriter.class})
 class ServiceBusinessRuleTests {
 
     @Autowired
