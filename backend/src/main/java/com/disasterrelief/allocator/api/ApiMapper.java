@@ -8,7 +8,8 @@ public final class ApiMapper {
     public static DisasterResponse disaster(Disaster value) {
         return new DisasterResponse(value.getId(), value.getName(), value.getType(), value.getStatus(),
                 value.getDescription(), value.getStartedAt(), value.getEndedAt(), value.getAffectedLocations()
-                        .stream().map(Location::getId).collect(java.util.stream.Collectors.toSet()));
+                        .stream().map(Location::getId).collect(java.util.stream.Collectors.toSet()),
+                value.getOrganization() == null ? null : value.getOrganization().getId());
     }
     public static LocationResponse location(Location value) {
         return new LocationResponse(value.getId(), value.getName(), value.getAddress(), value.getRegion(),
