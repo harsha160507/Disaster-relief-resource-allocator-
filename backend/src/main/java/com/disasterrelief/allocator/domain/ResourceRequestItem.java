@@ -42,6 +42,11 @@ public class ResourceRequestItem extends BaseEntity {
     private BigDecimal allocatedQuantity = BigDecimal.ZERO;
 
     @NotNull
+    @DecimalMin(value = "0.0", inclusive = true)
+    @Column(name = "delivered_quantity", nullable = false, precision = 19, scale = 3)
+    private BigDecimal deliveredQuantity = BigDecimal.ZERO;
+
+    @NotNull
     @Version
     @Column(nullable = false)
     private Long version = 0L;
