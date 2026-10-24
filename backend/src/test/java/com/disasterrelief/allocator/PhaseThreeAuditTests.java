@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.*;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -214,7 +215,7 @@ class PhaseThreeAuditTests {
         assertEquals(4, related.size()); // two allocations and two fulfillment transitions in this HTTP context
         assertEquals(RequestStatus.FULFILLED, requests.find(request.getId()).getStatus());
         disasters.close(disaster.getId(), Instant.now().plusSeconds(1));
-        assertEquals(15, events.count());
+        assertEquals(16, events.count());
         for (var event : events.findAll()) {
             assertEquals("USER", event.getSource());
             assertEquals(actor.getId(), event.getActor().getId());
