@@ -64,7 +64,7 @@ public class WorkspaceQueryService {
             case "requests" -> page(ResourceRequest.class, "destination.organization.id", "reference", scope, page, size, query, sort, direction, status, null,
                     r -> new RequestRow(ApiMapper.request(r), r.getDestination().getName(), r.getDisaster().getName(), r.getRequestedBy().getDisplayName()));
             case "allocations" -> page(Allocation.class, "requestItem.request.destination.organization.id",
-                    "requestItem.request.reference", scope, page, size, query, sort, direction, status, null,
+                    "requestItem.request.reference", scope, page, size, query, sort, direction, status, locationId,
                     a -> new AllocationRow(ApiMapper.allocation(a), a.getRequestItem().getRequest().getId(),
                             a.getRequestItem().getRequest().getReference(), a.getRequestItem().getRequest().getDestination().getId(),
                             a.getRequestItem().getRequest().getDestination().getName(), a.getRequestItem().getResourceType().getName(),
@@ -125,11 +125,10 @@ public class WorkspaceQueryService {
         if (scope != null && ownerPath != null) predicates.add(cb.equal(path(root, ownerPath), scope));
         if (!query.isBlank()) {
             String literal = query.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-            predicates.add(cb.like(path(root, searchPath).as(String.class), "%" + literal + "%", '\\'));
-            // Search consistently lowercases both the value and the supplied text.
-            predicates.set(predicates.size() - 1, cb.like(cb.lower(path(root, searchPath).as(String.class)), "%" + literal + "%", '\\'));
+            predicates.add(cb.like(cb.lower(path(root, searchPath).as(String.class)), "%" + literal + "%", '\\'));
         }
         if (location != null && type == Inventory.class) predicates.add(cb.equal(root.get("location").get("id"), location));
+        if (location != null && type == Allocation.class) predicates.add(cb.equal(root.get("requestItem").get("request").get("destination").get("id"), location));
         if (status != null && !status.isBlank()) {
             if (type == Inventory.class) {
                 switch (status) {
