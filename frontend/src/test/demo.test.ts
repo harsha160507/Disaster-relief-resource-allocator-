@@ -47,11 +47,20 @@ describe('Explicit sample workspace', () => {
     expect(delivered.quantity).toBe(dispatched.quantity);
   });
   it('manually reserves exact quantities and rejects a resource mismatch', async () => {
-    const {demoRequest}=await import('../lib/demo');
-    const row=await demoRequest('/allocations',{method:'POST',body:JSON.stringify({requestItemId:'item-0',inventoryId:'stock-0',quantity:20})});
+    const { demoRequest } = await import('../lib/demo');
+    const row = await demoRequest('/allocations', {
+      method: 'POST',
+      body: JSON.stringify({ requestItemId: 'item-0', inventoryId: 'stock-0', quantity: 20 }),
+    });
     expect(row.quantity).toBe(20);
-    const inventory=await demoRequest('/inventory/stock-0');expect(inventory.reservedQuantity).toBe(3220);
-    await expect(demoRequest('/allocations',{method:'POST',body:JSON.stringify({requestItemId:'item-0',inventoryId:'stock-1',quantity:1})})).rejects.toThrow('does not match');
+    const inventory = await demoRequest('/inventory/stock-0');
+    expect(inventory.reservedQuantity).toBe(3220);
+    await expect(
+      demoRequest('/allocations', {
+        method: 'POST',
+        body: JSON.stringify({ requestItemId: 'item-0', inventoryId: 'stock-1', quantity: 1 }),
+      }),
+    ).rejects.toThrow('does not match');
   });
   it('releases a cancelled manifest without removing physical stock', async () => {
     const { demoRequest } = await import('../lib/demo');
