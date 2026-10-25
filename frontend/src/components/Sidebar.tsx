@@ -1,13 +1,155 @@
-import { LayoutDashboard, Package, ClipboardList, GitBranch, Truck, CloudRain, MapPin, Boxes, Building2, Users, ShieldCheck, LogOut, ChevronDown, ArrowUpRight } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Package,
+  ClipboardList,
+  GitBranch,
+  Truck,
+  CloudRain,
+  MapPin,
+  Boxes,
+  Building2,
+  Users,
+  ShieldCheck,
+  LogOut,
+  ChevronDown,
+  ArrowUpRight,
+} from 'lucide-react';
 import type { Profile, Screen, Role } from '../model';
 import { has, roleLabels } from '../model';
-const icons={dashboard:LayoutDashboard,inventory:Package,requests:ClipboardList,allocations:GitBranch,shipments:Truck,disasters:CloudRain,locations:MapPin,'resource-types':Boxes,organizations:Building2,users:Users,'audit-events':ShieldCheck};
-const titles:Record<Screen,string>={dashboard:'Overview',inventory:'Inventory',requests:'Requests',allocations:'Allocations',shipments:'Shipments',disasters:'Disasters',locations:'Locations','resource-types':'Resource catalogue',organizations:'Organizations',users:'People & access','audit-events':'Audit history'};
-export function Sidebar({screen,onNavigate,profile,organization,demo,onExit,onRole}:{screen:Screen;onNavigate:(screen:Screen)=>void;profile:Profile;organization:string;demo:boolean;onExit:()=>void;onRole:(role:Role)=>void}){
- const group=(items:Screen[])=>items.map(id=>{const Icon=icons[id];return <button key={id} aria-current={screen===id?'page':undefined} className={'nav-item '+(screen===id?'active':'')} onClick={()=>onNavigate(id)}><Icon size={18} strokeWidth={1.7}/><span>{titles[id]}</span>{id==='inventory'&&<small>Live</small>}</button>;});
- return <aside className="sidebar"><div className="wordmark"><strong>Disaster Relief</strong><span>Resource Allocator</span></div>
- <div className="organization-card"><span className="org-avatar">RN</span><div><strong>{organization}</strong><small>Operations workspace</small></div><ChevronDown size={14}/></div>
- <nav aria-label="Main navigation"><span className="nav-label">WORKSPACE</span>{group(['dashboard',...(has(profile,'INVENTORY_MANAGER')?['inventory' as Screen]:[]),'requests','allocations','shipments'])}<span className="nav-label">COORDINATION</span>{group(['disasters','locations','resource-types'])}{has(profile)&&<><span className="nav-label">ADMINISTRATION</span>{group(['organizations','users','audit-events'])}</>}</nav>
- <div className="sidebar-bottom"><div className="sidebar-help"><span className="connection-dot"/><strong>{demo?'Interactive demo':'Connected workspace'}</strong><p>{demo?'Explore with sample relief data.':'Resources, coordinated.'}</p>{demo&&<label className="demo-role">Preview role<select aria-label="Demo role" value={profile.roles[0]} onChange={e=>onRole(e.target.value as Role)}>{Object.entries(roleLabels).map(([role,label])=><option key={role} value={role}>{label}</option>)}</select></label>}</div>
- <div className="user-row"><span className="avatar">{profile.displayName.split(' ').slice(0,2).map(n=>n[0]).join('')}</span><div><strong>{profile.displayName}</strong><small>{roleLabels[profile.roles[0]]}</small></div><button className="icon-button" aria-label={demo?'Exit demo':'Sign out'} onClick={onExit}><LogOut size={16}/></button></div></div></aside>;
+const icons = {
+  dashboard: LayoutDashboard,
+  inventory: Package,
+  requests: ClipboardList,
+  allocations: GitBranch,
+  shipments: Truck,
+  disasters: CloudRain,
+  locations: MapPin,
+  'resource-types': Boxes,
+  organizations: Building2,
+  users: Users,
+  'audit-events': ShieldCheck,
+};
+const titles: Record<Screen, string> = {
+  dashboard: 'Overview',
+  inventory: 'Inventory',
+  requests: 'Requests',
+  allocations: 'Allocations',
+  shipments: 'Shipments',
+  disasters: 'Disasters',
+  locations: 'Locations',
+  'resource-types': 'Resource catalogue',
+  organizations: 'Organizations',
+  users: 'People & access',
+  'audit-events': 'Audit history',
+};
+export function Sidebar({
+  screen,
+  onNavigate,
+  profile,
+  organization,
+  demo,
+  onExit,
+  onRole,
+}: {
+  screen: Screen;
+  onNavigate: (screen: Screen) => void;
+  profile: Profile;
+  organization: string;
+  demo: boolean;
+  onExit: () => void;
+  onRole: (role: Role) => void;
+}) {
+  const group = (items: Screen[]) =>
+    items.map((id) => {
+      const Icon = icons[id];
+      return (
+        <button
+          key={id}
+          aria-current={screen === id ? 'page' : undefined}
+          className={'nav-item ' + (screen === id ? 'active' : '')}
+          onClick={() => onNavigate(id)}
+        >
+          <Icon size={18} strokeWidth={1.7} />
+          <span>{titles[id]}</span>
+          {id === 'inventory' && <small>Live</small>}
+        </button>
+      );
+    });
+  return (
+    <aside className="sidebar">
+      <div className="wordmark">
+        <strong>Disaster Relief</strong>
+        <span>Resource Allocator</span>
+      </div>
+      <div className="organization-card">
+        <span className="org-avatar">RN</span>
+        <div>
+          <strong>{organization}</strong>
+          <small>Operations workspace</small>
+        </div>
+        <ChevronDown size={14} />
+      </div>
+      <nav aria-label="Main navigation">
+        <span className="nav-label">WORKSPACE</span>
+        {group([
+          'dashboard',
+          ...(has(profile, 'INVENTORY_MANAGER') ? ['inventory' as Screen] : []),
+          'requests',
+          'allocations',
+          'shipments',
+        ])}
+        <span className="nav-label">COORDINATION</span>
+        {group(['disasters', 'locations', 'resource-types'])}
+        {has(profile) && (
+          <>
+            <span className="nav-label">ADMINISTRATION</span>
+            {group(['organizations', 'users', 'audit-events'])}
+          </>
+        )}
+      </nav>
+      <div className="sidebar-bottom">
+        <div className="sidebar-help">
+          <span className="connection-dot" />
+          <strong>{demo ? 'Interactive demo' : 'Connected workspace'}</strong>
+          <p>{demo ? 'Explore with sample relief data.' : 'Resources, coordinated.'}</p>
+          {demo && (
+            <label className="demo-role">
+              Preview role
+              <select
+                aria-label="Demo role"
+                value={profile.roles[0]}
+                onChange={(e) => onRole(e.target.value as Role)}
+              >
+                {Object.entries(roleLabels).map(([role, label]) => (
+                  <option key={role} value={role}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        <div className="user-row">
+          <span className="avatar">
+            {profile.displayName
+              .split(' ')
+              .slice(0, 2)
+              .map((n) => n[0])
+              .join('')}
+          </span>
+          <div>
+            <strong>{profile.displayName}</strong>
+            <small>{roleLabels[profile.roles[0]]}</small>
+          </div>
+          <button
+            className="icon-button"
+            aria-label={demo ? 'Exit demo' : 'Sign out'}
+            onClick={onExit}
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
 }
