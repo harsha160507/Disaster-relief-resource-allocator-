@@ -157,6 +157,13 @@ export function Details({
             </table>
             {!row.items?.length && <p className="muted">No resources added yet.</p>}
             <div className="detail-actions">
+              {['APPROVED', 'PARTIALLY_FULFILLED', 'PARTIALLY_DELIVERED'].includes(row.status) &&
+                has(profile, 'INVENTORY_MANAGER') && (
+                  <button className="ui-btn" onClick={() => onForm('reserve', row)}>
+                    <GitBranch size={16} />
+                    Reserve exact quantity
+                  </button>
+                )}
               {row.status === 'DRAFT' && editable && (
                 <>
                   <button className="ui-btn" onClick={() => onForm('request-item', row)}>
