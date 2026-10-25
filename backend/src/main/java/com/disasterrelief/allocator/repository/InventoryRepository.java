@@ -14,6 +14,7 @@ import jakarta.persistence.LockModeType;
 public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"location", "resourceType"})
     @Query("select i from Inventory i where i.resourceType.id in :resourceTypeIds "
             + "and i.location.organization.id = :organizationId and i.quantity > i.reservedQuantity order by i.id")
     List<Inventory> findAvailableForTypesForUpdate(@Param("resourceTypeIds") java.util.Set<UUID> resourceTypeIds,
