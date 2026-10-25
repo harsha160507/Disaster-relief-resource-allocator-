@@ -202,8 +202,12 @@ export function EntitySelect({
       controller.abort();
     };
   }, [kind, q, open]);
+  const optionText = (row: Row) =>
+    kind === 'inventory'
+      ? row.resourceName + ' · ' + row.locationName + ' · ' + row.availableQuantity + ' available'
+      : row.name || row.displayName || row.reference || row.resourceName || row.id;
   const choose = (row: Row) => {
-    setSelected(row.name || row.displayName || row.reference || row.resourceName || row.id);
+    setSelected(optionText(row));
     onChange(row.id, row);
     setOpen(false);
     setQ('');
@@ -243,7 +247,7 @@ export function EntitySelect({
               }
               if (e.key === 'Enter' && open) {
                 e.preventDefault();
-                if (rows[active]) choose(rows[active]);
+                if (!busy && rows[active]) choose(rows[active]);
               }
             }}
           />
@@ -266,7 +270,7 @@ export function EntitySelect({
                   className={index === active ? 'highlighted' : ''}
                   onClick={() => choose(row)}
                 >
-                  {row.name || row.displayName || row.reference || row.resourceName}
+                  {optionText(row)}
                   {value === row.id && <Check size={14} />}
                 </button>
               ))
