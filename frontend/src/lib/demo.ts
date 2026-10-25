@@ -163,6 +163,31 @@ const shipments: Row[] = [
     allocations: [],
   },
 ];
+// Seed manifests reflect their displayed lifecycle state; physical balances are already post-dispatch snapshots.
+const inTransit = allocationRows.find((a) => a.id === 'alloc-5')!;
+inTransit.status = 'DISPATCHED';
+inTransit.shipmentId = 'ship-1';
+shipments[0].allocations = [inTransit];
+const packed = allocationRows.find((a) => a.id === 'alloc-3')!;
+packed.status = 'CONFIRMED';
+packed.shipmentId = 'ship-2';
+shipments[1].destinationId = packed.destinationId;
+shipments[1].allocations = [packed];
+const received = {
+  id: 'alloc-7',
+  requestId: 'req-7',
+  requestReference: requests[7].reference,
+  requestItemId: 'item-7',
+  destinationId: 'loc-4',
+  inventoryId: 'stock-1',
+  resourceName: types[1].name,
+  locationName: stock[1].locationName,
+  quantity: 100,
+  status: 'DELIVERED',
+  shipmentId: 'ship-3',
+};
+allocationRows.push(received);
+shipments[2].allocations = [received];
 const organizations: Row[] = [
   {
     id: 'org-1',
@@ -343,6 +368,46 @@ export async function demoRequest(path: string, init: RequestInit = {}) {
       totalElements,
       totalPages: Math.ceil(totalElements / size),
     });
+  }
+  if (parts[0] === 'allocations' && parts.length === 1) {
+    const request =
+      requests.find((r) => r.items.some((i: Row) => i.id === body.requestItemId)) ||
+      fail('Request item not found.');
+    const item = request.items.find((i: Row) => i.id === body.requestItemId);
+    const inventory = stock.find((r) => r.id === body.inventoryId) || fail('Stock line not found.');
+    const quantity = Number(body.quantity);
+    if (!['APPROVED', 'PARTIALLY_FULFILLED', 'PARTIALLY_DELIVERED'].includes(request.status))
+      fail('Only approved requests can receive allocations.');
+    if (inventory.resourceTypeId !== item.resourceTypeId)
+      fail('Stock resource does not match the requested resource.');
+    if (
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      quantity > item.requestedQuantity - item.allocatedQuantity ||
+      quantity > inventory.quantity - inventory.reservedQuantity
+    )
+      fail('Quantity exceeds available stock or remaining demand.');
+    inventory.reservedQuantity += quantity;
+    inventory.availableQuantity = inventory.quantity - inventory.reservedQuantity;
+    item.allocatedQuantity += quantity;
+    const allocation = {
+      id: uid(),
+      requestId: request.id,
+      requestReference: request.reference,
+      requestItemId: item.id,
+      destinationId: request.destinationId,
+      destinationName: request.destinationName,
+      inventoryId: inventory.id,
+      resourceName: inventory.resourceName,
+      locationName: inventory.locationName,
+      quantity,
+      status: 'RESERVED',
+      shipmentId: null,
+    };
+    allocationRows.unshift(allocation);
+    progress(request);
+    record('allocation.reserved', allocation.id, 'ALLOCATION');
+    return structuredClone(allocation);
   }
   if (parts[0] === 'inventory') {
     if (parts[1] === 'receipts') {
