@@ -459,6 +459,33 @@ class PostgreSqlMigrationIT {
                 + "' AND quantity = " + quantity + " AND reserved_quantity = " + reserved));
     }
 
+    @Test
+    void workspaceQueriesServeSignedTokenHttpWithPostgresqlSortingAndLiteralSearch() throws Exception {
+        try (var provider = new com.disasterrelief.allocator.support.TestIdentityProvider();
+                var context = startApplication(Map.of(
+                    "security.oauth2.issuer-uri", com.disasterrelief.allocator.support.TestIdentityProvider.ISSUER,
+                    "security.oauth2.audience", com.disasterrelief.allocator.support.TestIdentityProvider.AUDIENCE,
+                    "security.oauth2.jwk-set-uri", provider.jwksUri()))) {
+            context.getBean(AdministrationService.class).bootstrap("workspace-admin", "Workspace admin");
+            shipmentScenario(context, "7");
+            context.getBean(ResourceService.class).createResourceType("Water 100%", "litres", false);
+            int port = ((WebServerApplicationContext) context).getWebServer().getPort();
+            var client = HttpClient.newHttpClient();
+            String bearer = provider.token("workspace-admin");
+            var stock = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                    + "/api/v1/workspace/inventory?sort=quantity&direction=desc")).header("Authorization", "Bearer " + bearer)
+                    .GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, stock.statusCode());
+            assertTrue(stock.body().contains("\"resourceName\":\"Water\""));
+            var literal = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                    + "/api/v1/workspace/resource-types?q=%25")).header("Authorization", "Bearer " + bearer)
+                    .GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, literal.statusCode());
+            assertTrue(literal.body().contains("\"totalElements\":1"));
+            assertTrue(literal.body().contains("Water 100%"));
+        }
+    }
+
     private boolean disableAdministrator(com.disasterrelief.allocator.service.AdministrationService service,
             com.disasterrelief.allocator.api.dto.AdministrationDtos.UserView user,
             java.util.concurrent.CountDownLatch start) throws Exception {
