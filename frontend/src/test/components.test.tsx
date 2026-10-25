@@ -84,8 +84,8 @@ describe('Record interactions', () => {
     expect(screen.getByText('Delivered')).toBeInTheDocument();
   });
   it('does not call physically present but fully reserved stock empty', () => {
-    const status=columns('inventory').find(c=>c.key==='status')!;
-    render(<>{status.render!({quantity:10,reservedQuantity:10,availableQuantity:0})}</>);
+    const status = columns('inventory').find((c) => c.key === 'status')!;
+    render(<>{status.render!({ quantity: 10, reservedQuantity: 10, availableQuantity: 0 })}</>);
     expect(screen.getByText('Fully reserved')).toBeInTheDocument();
     expect(screen.queryByText('Empty')).not.toBeInTheDocument();
   });
