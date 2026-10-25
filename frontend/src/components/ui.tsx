@@ -15,7 +15,7 @@ export function Modal({title,description,children,onClose,busy=false,wide=false}
  return <dialog ref={ref} className={'modal '+(wide?'wide':'')} onCancel={e=>{e.preventDefault();if(!busy)onClose();}} onClick={e=>{if(e.target===ref.current&&!busy)onClose();}}>
   <header className="modal-header"><div><h2>{title}</h2>{description&&<p>{description}</p>}</div><button className="icon-button" data-close aria-label="Close dialog" disabled={busy} onClick={onClose}><X size={20}/></button></header>{children}</dialog>;
 }
-export function Field({label,children,hint}:{label:string;children:ReactNode;hint?:string}){const id=useId();return <label className="field" htmlFor={id}><span>{label}</span><span className="field-control">{children}</span>{hint&&<small>{hint}</small>}</label>;}
+export function Field({label,children,hint}:{label:string;children:ReactNode;hint?:string}){return <label className="field"><span>{label}</span><span className="field-control">{children}</span>{hint&&<small>{hint}</small>}</label>;}
 export function Submit({busy,children='Save changes'}:{busy:boolean;children?:ReactNode}){return <button className="ui-btn ui-btn-primary" type="submit" disabled={busy}>{busy?<><LoaderCircle size={16} className="spin"/> Saving…</>:children}</button>;}
 export function EntitySelect({kind,value,onChange,label,required=true}:{kind:string;value:string;onChange:(value:string,row?:Row)=>void;label:string;required?:boolean}){
  const [open,setOpen]=useState(false),[q,setQ]=useState(''),[rows,setRows]=useState<Row[]>([]),[selected,setSelected]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[active,setActive]=useState(0);
