@@ -19,9 +19,10 @@ public class ShipmentService {
     private final ShipmentRepository shipments;
     private final AllocationRepository allocations;
     private final ResourceRequestRepository requests;
-    private final InventoryRepository inventories;
     private final LocationRepository locations;
     private final AuditWriter audit;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     @Transactional
     public ShipmentDtos.View create(ShipmentDtos.Create input) {
@@ -214,8 +215,15 @@ public class ShipmentService {
 
     private Map<UUID, Inventory> lockStock(List<Allocation> manifest) {
         var result = new LinkedHashMap<UUID, Inventory>();
-        manifest.stream().map(a -> a.getInventory().getId()).distinct().sorted(Comparator.comparing(UUID::toString))
-                .forEach(id -> result.put(id, inventories.findByIdForUpdate(id).orElseThrow(() -> missing("Inventory"))));
+        var references = new HashMap<UUID, Inventory>();
+        manifest.forEach(allocation -> references.put(allocation.getInventory().getId(), allocation.getInventory()));
+        references.keySet().stream().sorted(Comparator.comparing(UUID::toString)).forEach(id -> {
+            var inventory = references.get(id);
+            // Validation may already have loaded this row. Refresh under the write lock
+            // before any stock mutation so a concurrent receipt/reservation is retained.
+            entityManager.refresh(inventory, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            result.put(id, inventory);
+        });
         return result;
     }
 
