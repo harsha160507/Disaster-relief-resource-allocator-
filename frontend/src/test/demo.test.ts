@@ -67,9 +67,9 @@ describe('Explicit sample workspace', () => {
     const manifest = await demoRequest('/shipments', {
       method: 'POST',
       body: JSON.stringify({
-        destinationId: 'loc-0',
+        destinationId: 'loc-3',
         trackingReference: 'CANCEL-SHIP',
-        allocationIds: ['alloc-3'],
+        allocationIds: ['alloc-1'],
       }),
     });
     const before = await demoRequest('/inventory/stock-1');
