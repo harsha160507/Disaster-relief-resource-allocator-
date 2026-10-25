@@ -108,11 +108,13 @@ export function columns(screen: Screen): Column[] {
           render: (r) => (
             <Badge
               status={
-                r.availableQuantity === 0
+                r.quantity === 0
                   ? 'EMPTY'
-                  : r.reservedQuantity > 0
-                    ? 'RESERVED'
-                    : 'AVAILABLE'
+                  : r.availableQuantity === 0
+                    ? 'FULLY_RESERVED'
+                    : r.reservedQuantity > 0
+                      ? 'RESERVED'
+                      : 'AVAILABLE'
               }
             />
           ),
