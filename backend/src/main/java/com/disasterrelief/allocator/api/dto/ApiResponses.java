@@ -22,10 +22,10 @@ public final class ApiResponses {
     public record InventoryResponse(UUID id, UUID locationId, UUID resourceTypeId, BigDecimal quantity,
             BigDecimal reservedQuantity, BigDecimal availableQuantity) { }
     public record RequestItemResponse(UUID id, UUID resourceTypeId, BigDecimal requestedQuantity,
-            BigDecimal allocatedQuantity, BigDecimal deliveredQuantity) { }
+            BigDecimal allocatedQuantity, BigDecimal deliveredQuantity, String resourceName, String unitOfMeasure) { }
     public record RequestResponse(UUID id, String reference, UUID disasterId, UUID requesterId,
             UUID destinationId, RequestStatus status, RequestPriority priority, String notes,
             List<RequestItemResponse> items) { }
     public record AllocationResponse(UUID id, UUID requestItemId, UUID inventoryId, BigDecimal quantity,
-            AllocationStatus status, UUID shipmentId) { }
+            AllocationStatus status, UUID shipmentId, String resourceName, String unitOfMeasure) { }
 }
