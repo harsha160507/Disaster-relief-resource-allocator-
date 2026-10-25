@@ -345,6 +345,37 @@ class PostgreSqlMigrationIT {
     }
 
     @Test
+    void dispatchRefreshesStockChangedAfterItWasLoadedInTheTransaction() throws Exception {
+        try (var context = startApplication()) {
+            var scenario = shipmentScenario(context, "20");
+            var allocation = context.getBean(AllocationService.class).allocate(scenario.request()).getFirst();
+            var shipments = context.getBean(ShipmentService.class);
+            UUID shipment = shipments.create(manifest(scenario, allocation.getId())).id();
+            var transaction = new org.springframework.transaction.support.TransactionTemplate(
+                    context.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+            var entityManager = context.getBean(jakarta.persistence.EntityManager.class);
+            transaction.executeWithoutResult(status -> {
+                var stale = entityManager.find(Inventory.class, scenario.inventory());
+                assertEquals(0, stale.getQuantity().compareTo(new BigDecimal("50")));
+                try (var pool = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+                    pool.submit(() -> context.getBean(ResourceService.class).receive(
+                            scenario.destination(), scenario.resource(), new BigDecimal("5")))
+                            .get(30, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (Exception failure) {
+                    throw new RuntimeException(failure);
+                }
+                // Dispatch must retain the committed receipt rather than overwrite
+                // it or fail upgrading a lock on the previously loaded version.
+                shipments.dispatch(shipment);
+            });
+            assertPgStock(scenario, "35", "0");
+            assertEquals(ShipmentStatus.DISPATCHED, shipments.get(shipment).status());
+            assertEquals(1, scalar("SELECT count(*) FROM " + schema
+                    + ".audit_events WHERE operation = 'inventory.dispatched'"));
+        }
+    }
+
+    @Test
     void failedShipmentAuditAppendRollsBackStockAllocationAndShipmentTogether() throws Exception {
         try (var context = startApplication()) {
             var scenario = shipmentScenario(context, "20");
