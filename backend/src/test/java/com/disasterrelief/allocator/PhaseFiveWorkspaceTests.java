@@ -124,7 +124,9 @@ class PhaseFiveWorkspaceTests {
         var manager = user(organization("Own"), Role.INVENTORY_MANAGER);
         resources.createResourceType("Water 100%", "litres", false);
         resources.createResourceType("<img src=x onerror=alert(1)>", "units", false);
-        get(manager, "resource-types?q=%25").andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(MockMvcRequestBuilders.get("/api/v1/workspace/resource-types").param("q", "%")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + provider.token(manager.getExternalSubject())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
         get(manager, "resource-types?q=img").andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].name").value("<img src=x onerror=alert(1)>"));
     }
