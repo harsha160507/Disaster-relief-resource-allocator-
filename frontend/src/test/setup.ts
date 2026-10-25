@@ -4,16 +4,14 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => cleanup());
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi
-    .fn()
-    .mockImplementation(() => ({
-      matches: false,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
+  value: vi.fn().mockImplementation(() => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
 });
 class ResizeObserverStub {
   observe() {}
