@@ -2,9 +2,156 @@ import type { ReactNode } from 'react';
 import { ArrowUpDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import type { Page, Row } from '../model';
 import { Empty, Loading } from './ui';
-export interface Column { key:string; label:string; render?:(row:Row)=>ReactNode; align?:'right'; sortable?:boolean; }
-export function DataTable({columns,data,loading,q,onQuery,onPage,onRow,actions,sort,onSort,search=true}:{columns:Column[];data:Page;loading:boolean;q:string;onQuery:(q:string)=>void;onPage:(page:number)=>void;onRow?:(row:Row)=>void;actions?:(row:Row)=>ReactNode;sort?:string;onSort?:(key:string)=>void;search?:boolean}){
- return <div className="data-table"><div className="table-toolbar">{search&&<label className="table-search"><Search size={16}/><input aria-label="Search records" placeholder="Search resources, records…" value={q} onChange={e=>onQuery(e.target.value)}/>{q&&<button onClick={()=>onQuery('')} aria-label="Clear search">×</button>}</label>}<span className="table-result-count">{data.totalElements} records</span></div>
- {loading?<Loading/>:<div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c.key} className={c.align==='right'?'numeric':''} aria-sort={sort?.startsWith(c.key)?sort.endsWith(':asc')?'ascending':'descending':undefined}>{c.sortable&&onSort?<button className="sort-button" onClick={()=>onSort(c.key)}>{c.label}<ArrowUpDown size={12}/></button>:c.label}</th>)}{actions&&<th><span className="sr-only">Actions</span></th>}</tr></thead><tbody>{data.content.map(row=><tr key={row.id} className={onRow?'clickable':''}>{columns.map((c,index)=><td key={c.key} className={c.align==='right'?'numeric':''}>{index===0&&onRow?<button className="row-link" onClick={()=>onRow(row)}>{c.render?c.render(row):String(row[c.key]??'—')}</button>:c.render?c.render(row):String(row[c.key]??'—')}</td>)}{actions&&<td className="row-actions">{actions(row)}</td>}</tr>)}</tbody></table>{!data.content.length&&<Empty title={q?'No matching records':'No records yet'} text={q?'Try a different search or clear your filters.':'Add your first record to get started.'}/>}</div>}
- <footer className="table-footer"><span>{data.totalElements?Math.min(data.page*data.size+1,data.totalElements):0}–{Math.min((data.page+1)*data.size,data.totalElements)} of {data.totalElements} records</span><div><button aria-label="Previous page" className="icon-button" disabled={data.page===0||loading} onClick={()=>onPage(data.page-1)}><ChevronLeft size={16}/></button><span>Page {data.page+1} of {Math.max(1,data.totalPages)}</span><button aria-label="Next page" className="icon-button" disabled={data.page+1>=data.totalPages||loading} onClick={()=>onPage(data.page+1)}><ChevronRight size={16}/></button></div></footer></div>;
+export interface Column {
+  key: string;
+  label: string;
+  render?: (row: Row) => ReactNode;
+  align?: 'right';
+  sortable?: boolean;
+}
+export function DataTable({
+  columns,
+  data,
+  loading,
+  q,
+  onQuery,
+  onPage,
+  onRow,
+  actions,
+  sort,
+  onSort,
+  search = true,
+}: {
+  columns: Column[];
+  data: Page;
+  loading: boolean;
+  q: string;
+  onQuery: (q: string) => void;
+  onPage: (page: number) => void;
+  onRow?: (row: Row) => void;
+  actions?: (row: Row) => ReactNode;
+  sort?: string;
+  onSort?: (key: string) => void;
+  search?: boolean;
+}) {
+  return (
+    <div className="data-table">
+      <div className="table-toolbar">
+        {search && (
+          <label className="table-search">
+            <Search size={16} />
+            <input
+              aria-label="Search records"
+              placeholder="Search resources, records…"
+              value={q}
+              onChange={(e) => onQuery(e.target.value)}
+            />
+            {q && (
+              <button onClick={() => onQuery('')} aria-label="Clear search">
+                ×
+              </button>
+            )}
+          </label>
+        )}
+        <span className="table-result-count">{data.totalElements} records</span>
+      </div>
+      {loading ? (
+        <Loading />
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                {columns.map((c) => (
+                  <th
+                    key={c.key}
+                    className={c.align === 'right' ? 'numeric' : ''}
+                    aria-sort={
+                      sort?.startsWith(c.key)
+                        ? sort.endsWith(':asc')
+                          ? 'ascending'
+                          : 'descending'
+                        : undefined
+                    }
+                  >
+                    {c.sortable && onSort ? (
+                      <button className="sort-button" onClick={() => onSort(c.key)}>
+                        {c.label}
+                        <ArrowUpDown size={12} />
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                  </th>
+                ))}
+                {actions && (
+                  <th>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {data.content.map((row) => (
+                <tr key={row.id} className={onRow ? 'clickable' : ''}>
+                  {columns.map((c, index) => (
+                    <td key={c.key} className={c.align === 'right' ? 'numeric' : ''}>
+                      {index === 0 && onRow ? (
+                        <button className="row-link" onClick={() => onRow(row)}>
+                          {c.render ? c.render(row) : String(row[c.key] ?? '—')}
+                        </button>
+                      ) : c.render ? (
+                        c.render(row)
+                      ) : (
+                        String(row[c.key] ?? '—')
+                      )}
+                    </td>
+                  ))}
+                  {actions && <td className="row-actions">{actions(row)}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!data.content.length && (
+            <Empty
+              title={q ? 'No matching records' : 'No records yet'}
+              text={
+                q
+                  ? 'Try a different search or clear your filters.'
+                  : 'Add your first record to get started.'
+              }
+            />
+          )}
+        </div>
+      )}
+      <footer className="table-footer">
+        <span>
+          {data.totalElements ? Math.min(data.page * data.size + 1, data.totalElements) : 0}–
+          {Math.min((data.page + 1) * data.size, data.totalElements)} of {data.totalElements}{' '}
+          records
+        </span>
+        <div>
+          <button
+            aria-label="Previous page"
+            className="icon-button"
+            disabled={data.page === 0 || loading}
+            onClick={() => onPage(data.page - 1)}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span>
+            Page {data.page + 1} of {Math.max(1, data.totalPages)}
+          </span>
+          <button
+            aria-label="Next page"
+            className="icon-button"
+            disabled={data.page + 1 >= data.totalPages || loading}
+            onClick={() => onPage(data.page + 1)}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </footer>
+    </div>
+  );
 }
