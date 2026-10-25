@@ -1,6 +1,7 @@
 # Disaster Relief Resource Allocator
 
-A Spring Boot backend for disaster response, inventory, resource requests and allocations.
+A desktop React/TypeScript workspace and Spring Boot backend for disaster response,
+inventory, requests, allocation and shipment delivery.
 
 ## Database setup
 
@@ -73,8 +74,24 @@ access and append transactional audit history.
 See [Shipment workflow guide](docs/shipment-workflows.md) for accounting, role
 permissions, API contracts and migration details.
 
+## Desktop frontend
+
+Phase 5 adds a desktop inventory-manager dashboard and operational screens for
+inventory, requests, allocations, shipments, disasters, locations, catalogues,
+organizations, users and audit history. It uses the supplied UI components, a text
+logo, blue accents and saved light/dark themes.
+
+From frontend/, run `npm ci` and `npm run dev`. Organization sign-in uses a
+configured public OIDC client; an explicitly labelled interactive demo is also
+available. Production requires the identity-provider settings and a same-origin
+API reverse proxy described in the guide.
+
+See [Frontend setup](docs/frontend-setup.md) and
+[Supplied component integration](docs/frontend-components.md).
+
 ## Current scope
 
-This repository currently contains the backend. Frontend and CI are planned later phases. Normal authenticated API access also requires an external JWT issuer
+This repository contains the backend and desktop frontend. Automated CI remains
+Phase 6. Normal authenticated API access also requires an external JWT issuer
 configured with `security.oauth2.issuer-uri` and `security.oauth2.audience`, plus a provisioned local profile; without these, protected endpoints
 remain inaccessible. Database setup alone does not create users or login sessions.
