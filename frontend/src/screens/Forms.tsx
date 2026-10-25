@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
-import { api, send } from '../lib/client';
+import { ApiError, api, send } from '../lib/client';
 import {
   has,
   label,
@@ -19,6 +19,7 @@ export interface FormAction {
 }
 const formTitles: Record<string, string> = {
   receive: 'Receive stock',
+  reserve: 'Reserve an exact quantity',
   adjust: 'Adjust stock',
   'resource-types': 'Add a resource',
   requests: 'Create a relief request',
@@ -129,7 +130,25 @@ export function FormDialog({
     setBusy(true);
     setError('');
     try {
+      const required: Record<string, string[]> = {
+        receive: ['locationId', 'resourceTypeId'],
+        reserve: ['requestItemId', 'inventoryId'],
+        requests: ['disasterId', 'destinationId'],
+        shipment: ['destinationId'],
+        'request-item': ['resourceTypeId'],
+        'affected-location': ['locationId'],
+      };
+      if ((required[kind] || []).some((key) => !values[key]))
+        throw new Error('Choose the required records from the suggestions before saving.');
+      if (kind === 'requests' && has(profile) && !values.requesterId)
+        throw new Error('Choose a verified requester from the suggestions.');
       let result: Row | undefined;
+      if (kind === 'reserve')
+        result = await send('/allocations', {
+          requestItemId: values.requestItemId,
+          inventoryId: values.inventoryId,
+          quantity: Number(values.quantity),
+        });
       if (kind === 'receive')
         result = await send('/inventory/receipts', {
           locationId: values.locationId,
@@ -164,7 +183,7 @@ export function FormDialog({
         result = await send('/requests', {
           reference: values.reference,
           disasterId: values.disasterId,
-          requesterId: profile.id,
+          requesterId: values.requesterId || profile.id,
           destinationId: values.destinationId,
           priority: values.priority,
           notes: values.notes || null,
@@ -224,7 +243,13 @@ export function FormDialog({
         result,
       );
     } catch (e) {
-      setError((e as Error).message);
+      setError(
+        e instanceof ApiError && Object.keys(e.fields).length
+          ? Object.entries(e.fields)
+              .map(([key, message]) => key.replace(/([A-Z])/g, ' $1') + ': ' + message)
+              .join('. ')
+          : (e as Error).message,
+      );
     } finally {
       setBusy(false);
     }
@@ -348,6 +373,7 @@ export function FormDialog({
               <span>3</span>Submit for review
             </div>
             {field('reference', 'Request reference')}
+            {has(profile) && entity('requesterId', 'Requester', 'users')}
             {entity('disasterId', 'Disaster', 'disasters')}
             {entity('destinationId', 'Destination', 'locations')}
             <Field label="Priority">
@@ -367,6 +393,36 @@ export function FormDialog({
             <Notice>
               The destination must be an affected location of the selected active disaster.
             </Notice>
+          </>
+        )}
+        {kind === 'reserve' && (
+          <>
+            <Field label="Requested resource">
+              <select
+                aria-label="Requested resource"
+                required
+                value={values.requestItemId || ''}
+                onChange={(e) => set('requestItemId', e.target.value)}
+              >
+                <option value="">Select a request item</option>
+                {row?.items
+                  ?.filter((i: Row) => i.requestedQuantity > i.allocatedQuantity)
+                  .map((i: Row) => (
+                    <option key={i.id} value={i.id}>
+                      {i.resourceName || i.resourceTypeId} ·{' '}
+                      {number(i.requestedQuantity - i.allocatedQuantity)} remaining
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            {entity('inventoryId', 'Matching stock line', 'inventory')}
+            {field(
+              'quantity',
+              'Reservation quantity',
+              'number',
+              true,
+              'Select a stock line for the same resource. Only available stock can be reserved.',
+            )}
           </>
         )}
         {kind === 'request-item' && (
