@@ -1,6 +1,8 @@
 package com.disasterrelief.allocator.service;
 
 import com.disasterrelief.allocator.api.ApiMapper;
+import com.disasterrelief.allocator.api.dto.AdministrationDtos;
+import com.disasterrelief.allocator.api.dto.ShipmentDtos;
 import com.disasterrelief.allocator.domain.*;
 import com.disasterrelief.allocator.security.*;
 import jakarta.persistence.*;
@@ -30,28 +32,39 @@ public class WorkspaceQueryService {
             UUID destinationId, String destinationName, String resourceName, String locationName) {}
 
     public PageView search(String collection, int page, int size, String query, String status,
-            UUID organizationId, UUID locationId) {
+            UUID organizationId, UUID locationId, String sort, String direction) {
         if (page < 0 || page > 100000 || size < 1 || size > 100 || query.length() > 120) {
             throw new IllegalArgumentException("Invalid search bounds");
         }
+        if (!Set.of("createdAt", "name", "quantity", "availableQuantity", "status").contains(sort)
+                || !Set.of("asc", "desc").contains(direction)) throw new IllegalArgumentException("Invalid sort");
         UUID scope = scope(organizationId);
         return switch (collection) {
             case "inventory" -> {
                 if (!actor.current().isAdministrator() && !actor.current().roles().contains(Role.INVENTORY_MANAGER))
                     throw new AccessDeniedException("Inventory manager access required");
-                yield page(Inventory.class, "location.organization.id", "resourceType.name", scope, page, size, query,
+                yield page(Inventory.class, "location.organization.id", "resourceType.name", scope, page, size, query, sort, direction,
                         status, locationId, i -> new StockRow(i.getId(), i.getLocation().getId(), i.getLocation().getName(),
                                 i.getResourceType().getId(), i.getResourceType().getName(), i.getResourceType().getUnitOfMeasure(),
                                 i.getQuantity(), i.getReservedQuantity(), i.getQuantity().subtract(i.getReservedQuantity()),
                                 i.getResourceType().isPerishable()));
             }
-            case "resource-types" -> page(ResourceType.class, null, "name", scope, page, size, query, status, null, ApiMapper::resourceType);
-            case "locations" -> page(Location.class, "organization.id", "name", scope, page, size, query, status, null, ApiMapper::location);
-            case "disasters" -> page(Disaster.class, "organization.id", "name", scope, page, size, query, status, null, ApiMapper::disaster);
-            case "requests" -> page(ResourceRequest.class, "destination.organization.id", "reference", scope, page, size, query, status, null,
+            case "shipments" -> page(Shipment.class, "destination.organization.id", "trackingReference", scope, page, size, query, sort, direction, status, null, ShipmentDtos::summary);
+            case "organizations" -> {
+                requireAdmin();
+                yield page(Organization.class, "id", "name", scope, page, size, query, sort, direction, status, null, AdministrationDtos::organization);
+            }
+            case "users" -> {
+                requireAdmin();
+                yield page(UserProfile.class, "organization.id", "displayName", scope, page, size, query, sort, direction, status, null, AdministrationDtos::user);
+            }
+            case "resource-types" -> page(ResourceType.class, null, "name", scope, page, size, query, sort, direction, status, null, ApiMapper::resourceType);
+            case "locations" -> page(Location.class, "organization.id", "name", scope, page, size, query, sort, direction, status, null, ApiMapper::location);
+            case "disasters" -> page(Disaster.class, "organization.id", "name", scope, page, size, query, sort, direction, status, null, ApiMapper::disaster);
+            case "requests" -> page(ResourceRequest.class, "destination.organization.id", "reference", scope, page, size, query, sort, direction, status, null,
                     r -> new RequestRow(ApiMapper.request(r), r.getDestination().getName(), r.getDisaster().getName(), r.getRequestedBy().getDisplayName()));
             case "allocations" -> page(Allocation.class, "requestItem.request.destination.organization.id",
-                    "requestItem.request.reference", scope, page, size, query, status, null,
+                    "requestItem.request.reference", scope, page, size, query, sort, direction, status, null,
                     a -> new AllocationRow(ApiMapper.allocation(a), a.getRequestItem().getRequest().getId(),
                             a.getRequestItem().getRequest().getReference(), a.getRequestItem().getRequest().getDestination().getId(),
                             a.getRequestItem().getRequest().getDestination().getName(), a.getRequestItem().getResourceType().getName(),
@@ -73,6 +86,10 @@ public class WorkspaceQueryService {
         return result;
     }
 
+    private void requireAdmin() {
+        if (!actor.current().isAdministrator()) throw new AccessDeniedException("Administrator access required");
+    }
+
     private UUID scope(UUID requested) {
         var identity = actor.current();
         if (requested != null) { access.organization(requested); return requested; }
@@ -80,11 +97,21 @@ public class WorkspaceQueryService {
     }
 
     private <T> PageView page(Class<T> type, String ownerPath, String searchPath, UUID scope, int page,
-            int size, String query, String status, UUID location, Function<T, ?> mapper) {
+            int size, String query, String sort, String direction, String status, UUID location, Function<T, ?> mapper) {
         var cb = em.getCriteriaBuilder();
         var select = cb.createQuery(type); var root = select.from(type);
         select.where(filters(cb, root, type, ownerPath, searchPath, scope, query, status, location));
-        select.orderBy(cb.desc(root.get("createdAt")), cb.desc(root.get("id")));
+        Expression<?> sortBy = root.get("createdAt");
+        if (sort.equals("name")) sortBy = path(root, searchPath);
+        if (sort.equals("quantity") || sort.equals("availableQuantity")) {
+            if (type != Inventory.class) throw new IllegalArgumentException("Quantity sort requires inventory");
+            sortBy = sort.equals("quantity") ? root.get("quantity") : cb.diff(root.<BigDecimal>get("quantity"), root.<BigDecimal>get("reservedQuantity"));
+        }
+        if (sort.equals("status")) {
+            if (!Set.of(ResourceRequest.class, Disaster.class, Allocation.class, Shipment.class).contains(type)) throw new IllegalArgumentException("No status sort for this collection");
+            sortBy = root.get("status");
+        }
+        select.orderBy(direction.equals("asc") ? cb.asc(sortBy) : cb.desc(sortBy), cb.desc(root.get("id")));
         var values = em.createQuery(select).setFirstResult(page * size).setMaxResults(size).getResultList();
         var count = cb.createQuery(Long.class); var countRoot = count.from(type);
         count.select(cb.count(countRoot)).where(filters(cb, countRoot, type, ownerPath, searchPath, scope, query, status, location));
@@ -116,6 +143,7 @@ public class WorkspaceQueryService {
                 if (type == ResourceRequest.class) value = RequestStatus.valueOf(status);
                 else if (type == Disaster.class) value = DisasterStatus.valueOf(status);
                 else if (type == Allocation.class) value = AllocationStatus.valueOf(status);
+                else if (type == Shipment.class) value = ShipmentStatus.valueOf(status);
                 else throw new IllegalArgumentException("This collection has no status filter");
                 predicates.add(cb.equal(root.get("status"), value));
             }
