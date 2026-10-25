@@ -2,3 +2,9 @@
 /.env
 /.env.*
 !/.env.example
+# Release outputs and Python test caches.
+/release/
+__pycache__/
+*.pyc
+# Populated runtime configuration must stay outside Git.
+deploy/*.env
