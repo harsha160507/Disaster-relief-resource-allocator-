@@ -89,9 +89,28 @@ API reverse proxy described in the guide.
 See [Frontend setup](docs/frontend-setup.md) and
 [Supplied component integration](docs/frontend-components.md).
 
+## Automated CI and release candidates
+
+[![CI](https://github.com/harsha160507/Disaster-relief-resource-allocator-/actions/workflows/ci.yml/badge.svg)](https://github.com/harsha160507/Disaster-relief-resource-allocator-/actions/workflows/ci.yml)
+
+Every pull request and main push runs backend tests with real PostgreSQL
+migration checks, a packaged-JAR startup/authentication smoke check, frontend
+formatting/tests/dependency audit/build, and release-tooling tests. The CI gate
+requires all applicable checks to pass.
+
+Successful main/manual runs provide source-identified backend/frontend release
+candidates with a manifest and SHA-256 checksums. Public OIDC build configuration
+can be supplied through Actions variables; no production credentials are needed
+by CI. No automatic deployment or public release is performed.
+
+See [CI and release-readiness guide](docs/release-readiness.md) for artifacts,
+configuration, production acceptance, rollback and maintainer settings.
+
 ## Current scope
 
-This repository contains the backend and desktop frontend. Automated CI remains
-Phase 6. Normal authenticated API access also requires an external JWT issuer
+This repository contains the backend, desktop frontend and automated CI.
+Phase 6 supplies tested release candidates; production acceptance still requires
+the target identity provider, hosting, database backup/restore rehearsal and
+operational configuration. Normal authenticated API access also requires an external JWT issuer
 configured with `security.oauth2.issuer-uri` and `security.oauth2.audience`, plus a provisioned local profile; without these, protected endpoints
 remain inaccessible. Database setup alone does not create users or login sessions.
