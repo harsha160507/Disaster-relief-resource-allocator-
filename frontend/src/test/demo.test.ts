@@ -46,6 +46,13 @@ describe('Explicit sample workspace', () => {
     const delivered = await demoRequest('/inventory/stock-1');
     expect(delivered.quantity).toBe(dispatched.quantity);
   });
+  it('manually reserves exact quantities and rejects a resource mismatch', async () => {
+    const {demoRequest}=await import('../lib/demo');
+    const row=await demoRequest('/allocations',{method:'POST',body:JSON.stringify({requestItemId:'item-0',inventoryId:'stock-0',quantity:20})});
+    expect(row.quantity).toBe(20);
+    const inventory=await demoRequest('/inventory/stock-0');expect(inventory.reservedQuantity).toBe(3220);
+    await expect(demoRequest('/allocations',{method:'POST',body:JSON.stringify({requestItemId:'item-0',inventoryId:'stock-1',quantity:1})})).rejects.toThrow('does not match');
+  });
   it('releases a cancelled manifest without removing physical stock', async () => {
     const { demoRequest } = await import('../lib/demo');
     const manifest = await demoRequest('/shipments', {
@@ -56,10 +63,10 @@ describe('Explicit sample workspace', () => {
         allocationIds: ['alloc-3'],
       }),
     });
-    const before = await demoRequest('/inventory/stock-3');
+    const before = await demoRequest('/inventory/stock-1');
     await demoRequest('/shipments/' + manifest.id + '/cancel', { method: 'POST' });
-    const after = await demoRequest('/inventory/stock-3');
+    const after = await demoRequest('/inventory/stock-1');
     expect(after.quantity).toBe(before.quantity);
-    expect(after.reservedQuantity).toBe(before.reservedQuantity - 60);
+    expect(after.reservedQuantity).toBe(before.reservedQuantity - 40);
   });
 });
