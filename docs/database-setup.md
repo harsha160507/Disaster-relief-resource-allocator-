@@ -113,7 +113,7 @@ For migration verification, create a dedicated empty test database such as
 ./mvnw -Ppostgres-it verify
 ```
 
-Use `mvnw.cmd` on Windows. The profile runs the normal suite plus fifteen PostgreSQL
+Use `mvnw.cmd` on Windows. The profile runs the normal suite plus sixteen PostgreSQL
 integration tests. Missing database credentials fail the profile; these checks
 are never silently skipped. Use a dedicated test account with CREATE permission
 on the test database. Each test creates its own random `phase1_it_...` schema and
@@ -124,5 +124,6 @@ HTTP server startup, restart/data preservation, repeat migration, integrity
 constraints, legacy-schema rejection, checksum/schema-drift rejection,
 legacy identity/audit preservation, concurrent administrator safeguards,
 append-only audit enforcement, atomic business/audit rollback, shipment
-concurrency/stock conservation and V6-to-V7 delivery progress preservation, and authenticated frontend workspace
+concurrency/stock conservation, a deterministic stale-inventory dispatch regression,
+V6-to-V7 delivery progress preservation, and authenticated frontend workspace
 query sorting and literal search. A passing H2 run alone does not validate PostgreSQL migrations.
