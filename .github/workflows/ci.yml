@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend and PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: relief_ci
+          POSTGRES_USER: relief_ci
+          POSTGRES_PASSWORD: ci-only-disposable-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relief_ci -d relief_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+    env:
+      PG_TEST_URL: jdbc:postgresql://localhost:5432/relief_ci
+      PG_TEST_USERNAME: relief_ci
+      PG_TEST_PASSWORD: ci-only-disposable-password
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Test, verify PostgreSQL migrations and package
+        run: ./mvnw --batch-mode --no-transfer-progress -Ppostgres-it verify
+      - name: Smoke test the executable JAR
+        working-directory: .
+        run: python3 scripts/smoke_backend.py
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/relief_ci
+          DB_USERNAME: relief_ci
+          DB_PASSWORD: ci-only-disposable-password
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-test-reports
+          path: |
+            backend/target/surefire-reports/
+            backend/target/failsafe-reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload verified backend
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-package
+          path: backend/target/disaster-relief-backend-*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check formatting
+        run: npm run format:check
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+      - name: Run frontend tests
+        run: npm test -- --reporter=default --reporter=junit --outputFile=test-results/junit.xml
+      - name: Build production frontend
+        run: npm run build
+        env:
+          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
+          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
+          VITE_OIDC_SCOPE: ${{ vars.VITE_OIDC_SCOPE || 'openid profile email' }}
+          VITE_OIDC_AUDIENCE: ${{ vars.VITE_OIDC_AUDIENCE }}
+      - name: Upload frontend test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frontend-test-reports
+          path: frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload verified frontend
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frontend-package
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  release-tooling:
+    name: Release tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test release packaging and checksums
+        run: python3 -m unittest discover -s scripts/tests -v
+
+  release-candidate:
+    name: Release candidate
+    needs: [backend, frontend, release-tooling]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: backend-package
+          path: backend/target/
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: frontend-package
+          path: frontend/dist/
+      - name: Assemble release candidate with checksums
+        run: python3 scripts/package_release.py --commit "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+        env:
+          VITE_OIDC_AUTHORITY: ${{ vars.VITE_OIDC_AUTHORITY }}
+          VITE_OIDC_CLIENT_ID: ${{ vars.VITE_OIDC_CLIENT_ID }}
+          VITE_OIDC_SCOPE: ${{ vars.VITE_OIDC_SCOPE || 'openid profile email' }}
+          VITE_OIDC_AUDIENCE: ${{ vars.VITE_OIDC_AUDIENCE }}
+      - name: Upload release candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: relief-release-candidate-${{ github.sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 30
+
+  ci:
+    name: CI gate
+    if: always()
+    needs: [backend, frontend, release-tooling, release-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    env:
+      BACKEND_RESULT: ${{ needs.backend.result }}
+      FRONTEND_RESULT: ${{ needs.frontend.result }}
+      PACKAGE_RESULT: ${{ needs.release-candidate.result }}
+      TOOLING_RESULT: ${{ needs.release-tooling.result }}
+      EVENT_NAME: ${{ github.event_name }}
+    steps:
+      - name: Require every applicable check
+        shell: bash
+        run: |
+          test "$BACKEND_RESULT" = success
+          test "$FRONTEND_RESULT" = success
+          test "$TOOLING_RESULT" = success
+          if [ "$EVENT_NAME" = pull_request ]; then
+            test "$PACKAGE_RESULT" = skipped
+          else
+            test "$PACKAGE_RESULT" = success
+          fi
+          echo "All applicable checks passed." >> "$GITHUB_STEP_SUMMARY"
