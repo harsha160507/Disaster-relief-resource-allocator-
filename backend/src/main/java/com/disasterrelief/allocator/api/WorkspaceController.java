@@ -18,7 +18,8 @@ public class WorkspaceController {
     public WorkspaceQueryService.PageView search(@PathVariable String collection,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "") String q, @RequestParam(required = false) String status,
-            @RequestParam(required = false) UUID organizationId, @RequestParam(required = false) UUID locationId) {
-        return queries.search(collection, page, size, q, status, organizationId, locationId);
+            @RequestParam(required = false) UUID organizationId, @RequestParam(required = false) UUID locationId,
+            @RequestParam(defaultValue = "createdAt") String sort, @RequestParam(defaultValue = "desc") String direction) {
+        return queries.search(collection, page, size, q, status, organizationId, locationId, sort, direction);
     }
 }
