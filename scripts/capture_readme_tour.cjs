@@ -1,0 +1,27 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const {chromium}=require(require.resolve('playwright',{paths:[path.join(__dirname,'../frontend')]}));
+const out=path.join(__dirname,'../docs/img/tour');fs.mkdirSync(out,{recursive:true});
+(async()=>{
+ const b=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
+ const p=await b.newPage({viewport:{width:1440,height:1120},reducedMotion:'reduce'});
+ const errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(10000);
+ const snap=async(name)=>{await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(400);await p.screenshot({path:path.join(out,name+'.png'),fullPage:true});console.log('Captured '+name)};
+ const nav=async(name)=>p.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name,exact:name!=='Inventory'}).click();
+ const confirm=async()=>{await p.getByRole('button',{name:'Confirm',exact:true}).click();await p.locator('.confirmation').waitFor({state:'hidden'});await p.waitForTimeout(250)};
+ const close=async()=>p.getByRole('button',{name:'Close dialog'}).click();
+ await p.goto(process.env.BASE_URL || 'http://127.0.0.1:5173');await p.getByRole('button',{name:'Explore demo workspace'}).waitFor();await snap('01-welcome');
+ await p.getByRole('button',{name:'Explore demo workspace'}).click();await p.getByRole('heading',{name:'Your resources. Their relief.'}).waitFor();await snap('02-overview');
+ await nav('Inventory');await p.getByText('First aid kits',{exact:true}).waitFor();await snap('03-inventory');
+ await p.getByRole('combobox',{name:'Demo role'}).selectOption('DISASTER_COORDINATOR');await nav('Requests');await p.getByRole('button',{name:'View REQ-2026-1046',exact:true}).click();
+ await p.getByRole('button',{name:'Approve request'}).waitFor();await snap('04-review-request');await p.getByRole('button',{name:'Approve request'}).click();await confirm();await close();
+ await p.getByRole('combobox',{name:'Demo role'}).selectOption('INVENTORY_MANAGER');await nav('Requests');await p.getByRole('button',{name:'View REQ-2026-1046',exact:true}).click();
+ await p.getByRole('button',{name:'Allocate available stock'}).click();await confirm();assert((await p.getByRole('dialog').innerText()).includes('Fully allocated'));await snap('05-allocated-request');await close();
+ await nav('Shipments');await p.getByRole('button',{name:'Create shipment',exact:true}).click();await p.getByRole('combobox',{name:'Shipment destination'}).fill('Community');await p.getByRole('option',{name:'Community health centre'}).click();
+ await p.getByRole('textbox',{name:'Tracking reference'}).fill('SHP-TOUR-001');await p.getByRole('checkbox').check();await snap('06-prepare-shipment');await p.getByRole('dialog').getByRole('button',{name:'Create shipment',exact:true}).click();await p.getByRole('dialog').waitFor({state:'hidden'});
+ await p.getByRole('row').filter({hasText:'SHP-TOUR-001'}).getByRole('button',{name:'View record',exact:true}).click();await p.getByRole('button',{name:'Dispatch shipment'}).click();await confirm();await p.getByRole('button',{name:'Confirm delivery'}).waitFor();await snap('07-dispatched-shipment');
+ await p.getByRole('button',{name:'Confirm delivery'}).click();await confirm();assert((await p.getByRole('dialog').innerText()).includes('Delivered'));await snap('08-delivered-shipment');await close();
+ await nav('Requests');await p.getByRole('button',{name:'View REQ-2026-1046',exact:true}).click();assert((await p.getByRole('dialog').innerText()).includes('Delivered'));await snap('09-delivered-request');await close();
+ await nav('Inventory');await p.getByRole('row').filter({hasText:'First aid kits'}).waitFor();var kitRow=await p.getByRole('row').filter({hasText:'First aid kits'}).innerText();assert(kitRow.includes('540')&&kitRow.includes('180')&&kitRow.includes('360'));await snap('10-stock-after-delivery');
+ await p.getByRole('switch',{name:'Dark theme'}).click();await nav('Overview');await snap('11-dark-overview');
+ console.log(JSON.stringify({screenshots:11,errors,stock:kitRow},null,2));assert.equal(errors.length,0);await b.close();console.log('Tour passed');
+})().catch(e=>{console.error(e);process.exit(1)});

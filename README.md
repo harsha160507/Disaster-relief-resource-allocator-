@@ -1,20 +1,46 @@
+<div align="center">
+
 # Disaster Relief Resource Allocator
 
-### From available supplies to confirmed delivery — one accountable relief workflow.
+### Every resource has a purpose. Every delivery needs a record.
+
+Connect warehouse stock, relief requests and confirmed deliveries in one accountable workspace.
 
 [![CI](https://github.com/harsha160507/Disaster-relief-resource-allocator-/actions/workflows/ci.yml/badge.svg)](https://github.com/harsha160507/Disaster-relief-resource-allocator-/actions/workflows/ci.yml)
-![Java](https://img.shields.io/badge/Java-25-ED8B00)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F)
-![React](https://img.shields.io/badge/React-TypeScript-149ECA)
-![Database](https://img.shields.io/badge/Database-PostgreSQL-4169E1)
+[![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)](backend/pom.xml)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](backend/pom.xml)
+[![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](frontend/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](frontend/package.json)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](docs/database-setup.md)
 
-A full-stack disaster-response workspace that connects **organizations, affected locations, resource inventory, approved requests, allocations and shipments**. Built with a desktop-oriented React/TypeScript frontend and a Spring Boot backend, it helps relief teams answer three essential questions:
+<img src="docs/img/tour/02-overview.png" alt="The allocator's demo overview: stock availability, reserved resources and a queue of relief requests" width="100%">
 
-- **What do we have?** Track physical, reserved and available supplies.
-- **Where is it needed?** Capture resource requests for disaster-affected destinations.
-- **Has it arrived?** Follow commitments through dispatch and confirmed delivery.
+**[Take the guided tour](#guided-tour)** &nbsp;·&nbsp; **[Run the demo](#try-it-in-two-minutes)** &nbsp;·&nbsp; **[Tech stack](#tech-stack)** &nbsp;·&nbsp; **[Set up the full system](#getting-started)**
 
-**[Features](#key-features) · [Architecture](#system-architecture) · [Data flow diagrams](#data-flow-diagrams) · [Use cases](#use-case-diagrams) · [Getting started](#getting-started) · [Documentation](#documentation)**
+<sub>Actual application screenshots with sample data. The local demo runs without a backend or identity provider.</sub>
+
+</div>
+
+> **The idea:** know what is available, reserve it for an approved need, and follow it all the way to receipt. Allocation and delivery are tracked separately.
+
+## Contents
+
+- [Why this project?](#why-this-project)
+- [Key features](#key-features)
+- [Roles and responsibilities](#roles-and-responsibilities)
+- [Try it in two minutes](#try-it-in-two-minutes)
+- [Guided tour](#guided-tour)
+- [A relief operation in practice](#a-relief-operation-in-practice)
+- [Tech stack](#tech-stack)
+- [System architecture](#system-architecture)
+- [System design diagrams](#system-design-diagrams)
+- [Security and consistency](#security-and-consistency)
+- [Getting started](#getting-started)
+- [Testing and CI](#testing-and-ci)
+- [Project layout](#project-layout)
+- [Current scope and deployment](#current-scope-and-deployment)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
 ## Why this project?
 
@@ -53,6 +79,97 @@ This project brings those records into one workflow. It reserves stock before sh
 
 Roles are stored in local profiles. JWT role claims do not grant application permissions. Field agents can edit/submit only their own requests; partner managers can manage their organization's requests. Organization checks and lifecycle rules apply in addition to role checks.
 
+## Try it in two minutes
+
+You only need **Node.js 24 and npm** to explore the interface.
+
+```sh
+git clone https://github.com/harsha160507/Disaster-relief-resource-allocator-.git
+cd Disaster-relief-resource-allocator-/frontend
+npm ci
+npm run dev
+```
+
+Open the local URL printed by Vite, normally `http://127.0.0.1:5173`, and choose **Explore demo workspace**.
+
+The sample environment includes ten resource types, five locations, two active disaster responses, requests at different stages and three shipments. Start as an **Inventory manager**, then use **Preview role** to explore the coordinator, field-agent and administrator views.
+
+Demo changes live in memory and reset on reload. The demo role selector previews the interface; live access requires a provisioned identity and backend authorization. There is no hosted public demo linked here.
+
+## Guided tour
+
+**One request, from review to receipt.** Follow these steps in a fresh demo session; allow about five minutes. Every picture below comes from the application's local demo, using its real controls and sample records.
+
+### 1. Enter the workspace
+
+Choose **Explore demo workspace** on the welcome screen. The overview brings inventory balances, open requests and shipments in transit together.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/tour/01-welcome.png" alt="Welcome screen with the Explore demo workspace button"><br><sub><b>Start here.</b> Explore sample operations without a live sign-in.</sub></td>
+    <td width="50%"><img src="docs/img/tour/02-overview.png" alt="Demo overview with resource cards, inventory table and response queue"><br><sub><b>Get oriented.</b> Stock and requests share one operational view.</sub></td>
+  </tr>
+</table>
+
+### 2. Read what is actually available
+
+Open **Inventory**. Find **First aid kits** at **Riverside shelter**: **640 on hand**, **180 reserved**, **460 available**. These three quantities answer different questions; a reservation commits goods without removing them from the warehouse.
+
+<img src="docs/img/tour/03-inventory.png" alt="Inventory before allocation, with first aid kits showing 640 on hand, 180 reserved and 460 available" width="100%">
+
+### 3. Review a field request
+
+Change **Preview role** to **Disaster coordinator**, open **Requests**, and open **REQ-2026-1046**. It asks for **100 first aid kits** for **Community health centre**. Choose **Approve request**, then **Confirm**.
+
+<img src="docs/img/tour/04-review-request.png" alt="Submitted request REQ-2026-1046 with 100 first aid kits and the Approve request action" width="100%">
+
+### 4. Reserve the supplies
+
+Switch back to **Inventory manager**, reopen **Requests → REQ-2026-1046**, and choose **Allocate available stock → Confirm**.
+
+The request becomes **Fully allocated**: **100 requested, 100 allocated, 0 delivered**. Physical stock is still **640**; reservations rise to **280**, leaving **360** available.
+
+<img src="docs/img/tour/05-allocated-request.png" alt="REQ-2026-1046 fully allocated, with 100 allocated kits and zero delivered" width="100%">
+
+### 5. Build a shipment for that destination
+
+Close the request, open **Shipments**, and choose **Create shipment**. Select **Community health centre** from the destination suggestions, enter **SHP-TOUR-001** as the tracking reference, and select the **100 First aid kits** allocation for **REQ-2026-1046**. Choose **Create shipment**.
+
+<img src="docs/img/tour/06-prepare-shipment.png" alt="Prepare a shipment dialog with Community health centre, reference SHP-TOUR-001 and a selected 100-kit allocation" width="100%">
+
+### 6. Dispatch, then confirm receipt
+
+Open **SHP-TOUR-001** and choose **Dispatch shipment → Confirm**. The goods now leave warehouse stock. Once they arrive, choose **Confirm delivery → Confirm**.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/tour/07-dispatched-shipment.png" alt="SHP-TOUR-001 dispatched, with its first aid kit manifest and Confirm delivery action"><br><sub><b>Dispatched.</b> Stock has left the warehouse; receipt is still pending.</sub></td>
+    <td width="50%"><img src="docs/img/tour/08-delivered-shipment.png" alt="SHP-TOUR-001 delivered, with dispatch and delivery timestamps"><br><sub><b>Delivered.</b> Receipt is recorded without a second stock deduction.</sub></td>
+  </tr>
+</table>
+
+### 7. Close the loop
+
+Reopen **Requests → REQ-2026-1046**: all **100 kits are delivered**. In **Inventory**, First aid kits now show **540 on hand**, **180 reserved**, **360 available**.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/tour/09-delivered-request.png" alt="REQ-2026-1046 marked Delivered with 100 requested, allocated and delivered kits"><br><sub><b>Demand fulfilled.</b> The request records confirmed receipt.</sub></td>
+    <td width="50%"><img src="docs/img/tour/10-stock-after-delivery.png" alt="Inventory after delivery, with first aid kits at 540 on hand, 180 reserved and 360 available"><br><sub><b>Stock reconciled.</b> Existing reservations remain intact.</sub></td>
+  </tr>
+</table>
+
+### 8. Make the workspace yours
+
+Use the theme switch at the top right to try the dark interface. Your theme preference is saved locally. Reload to reset the demo records, or use **Exit demo** at the bottom of the sidebar to return to the welcome screen.
+
+<details>
+<summary><b>See the dark workspace</b></summary>
+
+<img src="docs/img/tour/11-dark-overview.png" alt="The same relief workspace in its saved dark theme" width="100%">
+
+</details>
+
 ## A relief operation in practice
 
 1. **Prepare:** register an organization, provision its users, create locations and resource types, and record warehouse stock.
@@ -82,6 +199,27 @@ Cancelling a shipment **before dispatch** releases its reservations and allocate
 
 `FULFILLED` means **fully allocated**; actual receipt is represented separately by `PARTIALLY_DELIVERED` and `DELIVERED`.
 
+## Tech stack
+
+Versions below come from the checked-in [Maven configuration](backend/pom.xml) and [frontend lockfile](frontend/package-lock.json).
+
+| Layer | Technology | What it does here |
+| --- | --- | --- |
+| Backend language | **Java 25** | Domain logic, transactional services and typed API models |
+| API framework | **Spring Boot 4.1.1 · Web MVC · Bean Validation** | REST endpoints, input validation and structured errors |
+| Authentication and access | **Spring Security OAuth2 Resource Server · OIDC** | Validates provider JWTs; applies local roles and organization scope |
+| Data access | **Spring Data JPA / Hibernate** | Entity persistence, locking and version checks |
+| Database | **PostgreSQL**; CI uses **17** | Stores operational records and audit history |
+| Schema migrations | **Flyway** | Versioned database changes before Hibernate validation |
+| Frontend | **React 19.3.1 · TypeScript 5.9.3** | Operational screens, forms and role-aware navigation |
+| Build tooling | **Vite 8.3.5 · Maven Wrapper** | Frontend bundling and repeatable backend builds |
+| Browser identity client | **oidc-client-ts 3.5.0** | Authorization code flow with PKCE |
+| Interface | **Motion 12.43.0 · Lucide · Hugeicons · CSS** | Interactive controls, icons, light/dark themes and transitions |
+| Verification | **Spring Boot test stack · H2 · PostgreSQL integration checks · Vitest 5.0.5** | Backend regressions, real database behavior and frontend tests |
+| Code style and delivery | **Prettier 3.9.10 · GitHub Actions · Python release tooling** | Formatting, automated checks and packaged release candidates |
+
+The frontend demo uses in-memory sample records. The live system uses PostgreSQL and an external identity provider; the demo is not a substitute for backend security or database checks.
+
 ## System architecture
 
 ```mermaid
@@ -107,249 +245,16 @@ flowchart TD
     API -->|JSON results and structured errors| UI
 ```
 
-| Layer | Technology and responsibility |
-| --- | --- |
-| Frontend | React, TypeScript and Vite; operational screens, OIDC integration and demo workspace |
-| API | Spring Boot Web MVC; controllers, validated DTOs and structured errors |
-| Security | Spring Security OAuth2 resource server; token validation and local profile/organization authorization |
-| Business logic | Transactional services for requests, allocation, inventory, shipments and administration |
-| Persistence | Spring Data JPA/Hibernate, UUID identities, decimal quantities and concurrency controls |
-| Database evolution | PostgreSQL and Flyway; Hibernate validates migrated entity mappings |
-| Verification | H2 regression tests, real PostgreSQL integration checks and GitHub Actions |
+## System design diagrams
 
-## Data flow diagrams
+Explore the [data-flow and use-case diagrams](docs/system-design.md) for a closer look at the implementation:
 
-These are **logical DFDs**, using Mermaid for GitHub-native rendering. Rectangles represent external entities, rounded nodes represent processes, cylinders represent logical data stores, and labelled arrows represent data. Store groups are tables within the same PostgreSQL database, not separate databases. Arrows describe information movement, not the movement of physical goods.
+- [Level 0: system context](docs/system-design.md#level-0--system-context)
+- [Level 1: application processes](docs/system-design.md#level-1--major-application-processes)
+- [Level 2: resource allocation](docs/system-design.md#level-2--decomposition-of-40-allocate-resources)
+- [Use cases by role](docs/system-design.md#use-case-diagrams)
 
-### Level 0 — system context
-
-The entire application is one process. Relief staff includes coordinators, inventory managers, field agents, partner managers and viewers; each action is subject to that user's permissions.
-
-```mermaid
-flowchart TD
-    Admin["System administrator"]
-    Staff["Operational user including administrator"]
-    IdP["External identity provider"]
-    System("0. Disaster Relief Resource Allocator")
-
-    Admin -->|Organization and user changes; audit queries| System
-    System -->|Administration results and audit history| Admin
-    Staff -->|Disaster, stock, request, allocation and shipment data; queries| System
-    System -->|Operational records, progress and validation results| Staff
-    System -->|Sign-in protocol requests; metadata and key requests| IdP
-    IdP -->|Identity tokens, metadata and public signing keys| System
-```
-
-### Level 1 — major application processes
-
-**Level 1A — access, preparation and demand.**
-
-The context process decomposes into six responsibilities, shown in two connected views. P2 groups disaster/location/catalogue and inventory operations; P6 groups read views and audit capture. Shared authorization applies before operational processes. Administrator operations use the same business processes with cross-organization scope where permitted.
-
-```mermaid
-flowchart TD
-    Admin["System administrator"]
-    Staff["Operational user including administrator"]
-    IdP["External identity provider"]
-    P1("1.0 Authenticate and administer")
-    P2("2.0 Manage relief context and stock")
-    P3("3.0 Manage resource requests")
-    P6("6.0 Audit capture")
-    D1[("D1 Organizations and profiles")]
-    D2[("D2 Context and stock")]
-    D3[("D3 Requests and items")]
-
-    Admin -->|Profile and organization changes| P1
-    P1 -->|Administration results| Admin
-    Staff <-->|Sign-in and profile data| P1
-    P1 <-->|OIDC, metadata and keys| IdP
-    P1 <-->|Profiles and local roles| D1
-    Staff <-->|Context and stock changes/results| P2
-    P2 <-->|Context and quantities| D2
-    Staff <-->|Drafts, reviews and status| P3
-    D1 -->|Requester and organization| P3
-    D2 -->|Destination and resources| P3
-    P3 <-->|Requests and items| D3
-    P1 -->|Administration events| P6
-    P2 -->|Context and stock events| P6
-    P3 -->|Request events| P6
-```
-
-**Level 1B — allocation, shipment and visibility.** P6 and D1–D3 are the same logical processes/stores referenced above; they are repeated for readability.
-
-```mermaid
-flowchart TD
-    Staff["Operational user including administrator"]
-    Admin["System administrator"]
-    P4("4.0 Allocate resources")
-    P5("5.0 Manage shipments")
-    P6("6.0 Record audit and serve read views")
-    D1[("D1 Organizations and profiles")]
-    D2[("D2 Context and stock")]
-    D3[("D3 Requests and items")]
-    D4[("D4 Allocations and shipments")]
-    D5[("D5 Audit events")]
-
-    Staff <-->|Instructions, history and results| P4
-    D2 <-->|Stock and reservations| P4
-    D3 <-->|Demand and progress| P4
-    P4 <-->|Allocation records| D4
-    P4 -->|Reservation events| P6
-    Staff <-->|Shipment actions and results| P5
-    D2 <-->|Destination and balances| P5
-    D3 <-->|Delivery progress| P5
-    D4 <-->|Manifests and states| P5
-    P5 -->|Shipment events| P6
-    Staff <-->|Queries and scoped read views| P6
-    Admin <-->|Audit filters and history| P6
-    D1 -->|Scoped profile data| P6
-    D2 -->|Scoped context data| P6
-    D3 -->|Scoped request data| P6
-    D4 -->|Scoped fulfillment data| P6
-    P6 -->|Successful change events| D5
-    D5 -->|Audit records| P6
-```
-
-Administrators also participate through the operational-user entity. P6's audit writes occur **inside the originating business transaction**, not through an asynchronous event pipeline. An audit append failure rolls back the business change.
-
-### Level 2 — decomposition of 4.0 Allocate resources
-
-This view expands P4 while retaining its Level 1 boundaries: allocation instructions/results, stock, requests, allocations and audit events. Access checks happen at the HTTP boundary; services lock the request and inventory before changing quantities.
-
-```mermaid
-flowchart TD
-    Actor["Authorized operational user"]
-    P41("4.1 Load and validate request")
-    P42("4.2 Lock matching stock")
-    P43("4.3 Calculate reservation quantities")
-    P44("4.4 Persist reservations and request progress")
-    P45("4.5 Read allocation history")
-    D2[("D2 Context and stock")]
-    D3[("D3 Requests and items")]
-    D4[("D4 Allocations and shipments")]
-    P6("6.0 Record audit and serve read views")
-
-    Actor -->|Request ID or exact reservation data| P41
-    D3 -->|Locked request data| P41
-    P41 -->|Validated demand| P42
-    D2 -->|Locked available stock| P42
-    P42 -->|Stock and demand| P43
-    P43 -->|Valid quantities| P44
-    P44 -->|Updated reserved quantities| D2
-    P44 -->|Allocation progress| D3
-    P44 -->|New RESERVED allocations| D4
-    P44 -->|Audit events| P6
-    P44 -->|Allocation result| Actor
-    P41 -->|Invalid request result| Actor
-    P42 -->|Invalid stock selection result| Actor
-    P43 -->|Invalid quantity result| Actor
-
-    Actor -->|Request item history query| P45
-    D3 -->|Existing request item| P45
-    D4 -->|Prior allocations for the item| P45
-    P45 -->|Allocation history or missing-item error| Actor
-```
-
-Automatic allocation reserves **min(remaining need, available stock)** from matching inventory in the destination's organization, ordered by inventory UUID. It can leave demand partially allocated. Exact reservations reject nonpositive quantities, mismatched resources, cross-organization stock, excess demand or insufficient availability. This is stock-matching allocation; the implementation does not optimize geographic routes or globally rank competing requests.
-
-## Use case diagrams
-
-These diagrams use **UML-style actor/use-case associations expressed as Mermaid flowcharts**: external rectangles are actors, oval nodes are use cases, and subgraphs define the application boundary. Associations show participation, not execution order. The views are split for readability.
-
-### Administration and access
-
-```mermaid
-flowchart LR
-    Admin["System administrator"]
-    User["Any provisioned active user"]
-    IdP["External identity provider"]
-
-    subgraph System["Application use cases"]
-        Login(["Sign in through OIDC"])
-        Profile(["View own profile and organization"])
-        Orgs(["Manage organizations"])
-        Users(["Provision users and manage local roles"])
-        Audit(["Search and inspect audit history"])
-    end
-
-    User --- Login
-    IdP --- Login
-    User --- Profile
-    Admin --- Login
-    Admin --- Profile
-    Admin --- Orgs
-    Admin --- Users
-    Admin --- Audit
-```
-
-The application binds provider identities to local profiles; it does not issue passwords or provide public self-registration. Global administrators have no organization membership.
-
-### Disaster, inventory and request operations
-
-```mermaid
-flowchart LR
-    Admin["System administrator"]
-    Coordinator["Disaster coordinator"]
-    Inventory["Inventory manager"]
-    Field["Field agent"]
-    Partner["Partner manager"]
-
-    subgraph System["Application use cases"]
-        Disaster(["Manage disasters and affected locations"])
-        Stock(["Manage catalogue and inventory"])
-        Location(["Create locations"])
-        Request(["Create, edit and submit requests"])
-        Review(["Approve or reject requests"])
-    end
-
-    Admin --- Disaster
-    Admin --- Stock
-    Admin --- Location
-    Admin --- Request
-    Admin --- Review
-    Coordinator --- Disaster
-    Coordinator --- Review
-    Inventory --- Stock
-    Partner --- Location
-    Partner --- Request
-    Field --- Request
-```
-
-### Allocation, shipment and operational visibility
-
-```mermaid
-flowchart LR
-    Admin["System administrator"]
-    Coordinator["Disaster coordinator"]
-    Inventory["Inventory manager"]
-    Field["Field agent"]
-    ReadOnly["Partner manager or viewer"]
-
-    subgraph System["Application use cases"]
-        Allocate(["Automatically allocate or reserve exact stock"])
-        Shipment(["Create, dispatch or cancel pending shipment"])
-        Deliver(["Confirm shipment delivery"])
-        Read(["View permitted operational records and allocation history"])
-    end
-
-    Admin --- Allocate
-    Admin --- Shipment
-    Admin --- Deliver
-    Admin --- Read
-    Coordinator --- Allocate
-    Coordinator --- Shipment
-    Coordinator --- Deliver
-    Coordinator --- Read
-    Inventory --- Allocate
-    Inventory --- Shipment
-    Inventory --- Deliver
-    Inventory --- Read
-    Field --- Deliver
-    Field --- Read
-    ReadOnly --- Read
-```
-
-Operational reads remain subject to endpoint-specific permissions and organization scope. For example, inventory/catalogue APIs are restricted to administrators and inventory managers; membership does not grant unrestricted access to every dataset. The API permits coordinators and inventory managers to reserve exact quantities, although the current frontend exposes exact reservation to inventory managers.
+The diagrams retain the detailed process boundaries, audit behavior and authorization notes.
 
 ## Security and consistency
 
@@ -422,7 +327,7 @@ The development server normally opens at `http://127.0.0.1:5173` and proxies `/a
 
 ### Explore without a live backend
 
-Choose **Explore demo workspace** in the frontend. This explicitly labelled mode uses in-memory sample data, does not call the live backend and resets on reload. Demo role selection previews the UI; it does not grant real permissions.
+Follow [Try it in two minutes](#try-it-in-two-minutes), then use the [guided tour](#guided-tour) to walk through a complete sample delivery.
 
 ## Testing and CI
 
@@ -445,7 +350,7 @@ GitHub Actions runs backend/PostgreSQL checks, packaged-JAR startup/authenticati
 | --- | --- |
 | `backend/` | Spring Boot API, domain model, services, repositories, migrations and tests |
 | `frontend/` | React/TypeScript workspace, OIDC integration and demo experience |
-| `docs/` | Database, identity, audit, shipment, frontend and release guides |
+| `docs/` | System design, screenshot tour, database, identity, audit, shipment, frontend and release guides |
 | `scripts/` | Release packaging, startup smoke checks and tooling tests |
 | `deploy/` | Deployment configuration examples |
 | `.github/workflows/` | Automated CI and release-candidate workflow |
@@ -469,3 +374,27 @@ CI does not automatically deploy the application or publish a public release. Us
 | [Frontend setup](docs/frontend-setup.md) | Local development, live sign-in, demo and production hosting |
 | [Component integration](docs/frontend-components.md) | Supplied UI components and integration choices |
 | [CI and release readiness](docs/release-readiness.md) | Automated checks, candidate artifacts, acceptance and rollback |
+
+## Contributing
+
+Useful contributions include clearer workflow guidance, accessibility improvements, stronger allocation/concurrency tests and fixes for reproducible bugs.
+
+1. Open an [issue](https://github.com/harsha160507/Disaster-relief-resource-allocator-/issues) describing the problem or proposed change.
+2. Keep a pull request focused and explain the behavior before and after your change.
+3. Run the relevant [checks](#testing-and-ci). Include screenshots for interface changes and refresh tour images when the workflow changes.
+
+See [screenshot capture notes](docs/img/README.md) before updating the visual tour.
+
+---
+
+<div align="center">
+
+**From shelf to shelter. With a record at every step.**
+
+Built by [Harshavardhan K](https://github.com/harsha160507)
+
+If this project is useful to you, consider giving it a ⭐ or sharing an improvement.
+
+[Back to top](#disaster-relief-resource-allocator) &nbsp;·&nbsp; [Report an issue](https://github.com/harsha160507/Disaster-relief-resource-allocator-/issues) &nbsp;·&nbsp; [Explore the code](https://github.com/harsha160507/Disaster-relief-resource-allocator-)
+
+</div>
